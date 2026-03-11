@@ -1,7 +1,18 @@
 // @ts-nocheck
 "use client";
-import { fetchMaterials, insertMaterial } from "@/lib/db/materials";
-import { fetchContracts } from "@/lib/db/contracts";
+
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
+import {
+  fetchMaterials,
+  insertMaterial,
+  deleteMaterialsByIds,
+} from "@/lib/db/materials";
+import {
+  fetchContracts,
+  insertContract,
+  deleteContractsByIds,
+} from "@/lib/db/contracts";
 import React, { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,25 +35,7 @@ const wearRanges = {
   战痕累累: ["0.45 - 0.50", "0.50 - 0.63", "0.63 - 0.76", "0.76 - 0.90", "0.90 - 1.00", "自定义"],
 };
 
-const initialMaterials = [
-  { id: 1, date: "2026-03-10", platform: "BUFF", name: "AK-47 | 红线", wearLevel: "久经沙场", wearRange: "0.15 - 0.18", customWear: "", cost: 120, salePrice: 145, status: "已售出", mode: "single" },
-  { id: 2, date: "2026-03-10", platform: "C5", name: "AWP | 二西莫夫", wearLevel: "久经沙场", wearRange: "0.21 - 0.24", customWear: "", cost: 88, salePrice: "", status: "库存中", mode: "single" },
-  { id: 3, date: "2026-03-09", platform: "UU有品", name: "M4A1-S | 黑莲花", wearLevel: "崭新出厂", wearRange: "0.04 - 0.07", customWear: "", cost: 210, salePrice: 236, status: "已售出", mode: "single" },
-  { id: 4, date: "2026-03-08", platform: "ECO", name: "P250 | 设施草图", wearLevel: "略有磨损", wearRange: "0.07 - 0.08", customWear: "", cost: 12.1, salePrice: "", status: "库存中", mode: "single" },
-  { id: 5, date: "2026-03-08", platform: "ECO", name: "P250 | 设施草图", wearLevel: "略有磨损", wearRange: "0.08 - 0.09", customWear: "", cost: 12.2, salePrice: "", status: "库存中", mode: "single" },
-  { id: 6, date: "2026-03-08", platform: "ECO", name: "P250 | 设施草图", wearLevel: "略有磨损", wearRange: "0.09 - 0.10", customWear: "", cost: 12.3, salePrice: "", status: "库存中", mode: "single" },
-  { id: 7, date: "2026-03-08", platform: "ECO", name: "P250 | 设施草图", wearLevel: "略有磨损", wearRange: "0.10 - 0.11", customWear: "", cost: 12.4, salePrice: "", status: "库存中", mode: "single" },
-  { id: 8, date: "2026-03-08", platform: "ECO", name: "P250 | 设施草图", wearLevel: "略有磨损", wearRange: "0.11 - 0.15", customWear: "", cost: 12.5, salePrice: "", status: "库存中", mode: "single" },
-  { id: 9, date: "2026-03-08", platform: "ECO", name: "P250 | 设施草图", wearLevel: "略有磨损", wearRange: "0.07 - 0.08", customWear: "", cost: 12.6, salePrice: "", status: "库存中", mode: "single" },
-  { id: 10, date: "2026-03-08", platform: "ECO", name: "P250 | 设施草图", wearLevel: "略有磨损", wearRange: "0.08 - 0.09", customWear: "", cost: 12.7, salePrice: "", status: "库存中", mode: "single" },
-  { id: 11, date: "2026-03-08", platform: "ECO", name: "P250 | 设施草图", wearLevel: "略有磨损", wearRange: "0.09 - 0.10", customWear: "", cost: 12.8, salePrice: "", status: "库存中", mode: "single" },
-];
 
-const initialContracts = [
-  { id: 1, date: "2026-03-10", contractName: "FN 红线合同", outputName: "AK-47 | 火蛇", outputWearLevel: "崭新出厂", outputWearRange: "0.00 - 0.01", outputCustomWear: "", refPrice: 520, result: "成功", furnaceRate: 0.1, furnaceFee: 52, salePrice: 548, status: "已售出", type: "普通汰换" },
-  { id: 2, date: "2026-03-09", contractName: "略磨合同", outputName: "AWP | 二西莫夫", outputWearLevel: "久经沙场", outputWearRange: "0.21 - 0.24", outputCustomWear: "", refPrice: 130, result: "失败", furnaceRate: 0, furnaceFee: 0, salePrice: "", status: "库存中", type: "普通汰换" },
-  { id: 3, date: "2026-03-08", contractName: "崭新合同", outputName: "USP-S | 闪回", outputWearLevel: "崭新出厂", outputWearRange: "0.03 - 0.04", outputCustomWear: "", refPrice: 98, result: "成功", furnaceRate: 0.1, furnaceFee: 9.8, salePrice: 116, status: "已售出", type: "普通汰换" },
-];
 
 function money(value) {
   return `¥${Number(value || 0).toFixed(2)}`;
@@ -113,22 +106,67 @@ function getDailySummary(date, materials, contracts) {
 
 export default function CS2TradeRegisterPrototype() {
 
-  React.useEffect(() => {
-  async function loadMaterials() {
-    const { data, error } = await fetchMaterials();
+const router = useRouter();
 
-    if (error) {
-      console.error("读取材料失败", error);
-    } else {
-      setMaterials(data || []);
+React.useEffect(() => {
+  async function checkAuth() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      router.replace("/login");
+      return;
     }
+
+setCurrentUser(user);
+await loadMaterials(user.id);
+await loadContracts(user.id);
+setAuthChecked(true);
   }
 
-  loadMaterials();
-}, []);
+  checkAuth();
+}, [router]);
 
-const [materials, setMaterials] = useState<any[]>([]);
-  const [contracts, setContracts] = useState(initialContracts);
+
+async function handleLogout() {
+  await supabase.auth.signOut();
+  router.replace("/login");
+}
+
+async function loadMaterials(userId: string) {
+  const { data, error } = await fetchMaterials(userId);
+
+  if (error) {
+    console.error("读取材料失败", error);
+    return;
+  }
+
+  setMaterials(data || []);
+}
+
+async function loadContracts(userId: string) {
+  const { data, error } = await fetchContracts(userId);
+
+  if (error) {
+    console.error("读取汰换记录失败", error);
+    return;
+  }
+
+  setContracts(data || []);
+}
+
+const [toast, setToast] = React.useState({
+  show: false,
+  message: "",
+  type: "success",
+});
+
+const toastTimerRef = React.useRef<any>(null);
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [contracts, setContracts] = useState<any[]>([]);
+  const [authChecked, setAuthChecked] = React.useState(false);
+  const [currentUser, setCurrentUser] = React.useState<any>(null);
   const [keyword, setKeyword] = useState("");
   const [materialMode, setMaterialMode] = useState("single");
   const [exchangeMode, setExchangeMode] = useState("普通汰换");
@@ -234,36 +272,70 @@ const [materials, setMaterials] = useState<any[]>([]);
   }, [materials, keyword]);
 
   const inventoryRows = useMemo(() => {
-    const materialRows = materials.map((item) => ({
-      id: `material-${item.id}`,
-      date: item.date,
-      platform: item.platform,
-      name: item.name,
-      wearLevel: item.wearLevel,
-      wearRange: item.wearRange === "自定义" ? item.customWear || "自定义" : item.wearRange,
-      cost: Number(item.cost || 0),
-      salePrice: item.salePrice === "" ? "" : Number(item.salePrice || 0),
-      profit: item.salePrice === "" ? "" : Number(item.salePrice || 0) - Number(item.cost || 0),
-      status: item.status,
-      itemType: "material",
-      rawId: item.id,
-      isContract: false,
-    }));
-    const contractRows = contracts.map((item) => ({
-      id: `contract-${item.id}`,
-      date: item.date,
-      platform: "汰换",
-      name: item.outputName,
-      wearLevel: item.outputWearLevel || "-",
-      wearRange: item.outputWearRange === "自定义" ? item.outputCustomWear || "自定义" : item.outputWearRange || "-",
-      cost: Number(item.refPrice || 0),
-      salePrice: item.salePrice === "" ? "" : Number(item.salePrice || 0),
-      profit: item.salePrice === "" ? "" : Number(item.salePrice || 0) - Number(item.refPrice || 0),
-      status: item.status,
-      itemType: "contract",
-      rawId: item.id,
-      isContract: true,
-    }));
+const materialRows = materials.map((item) => {
+  const wearLevel = item.wearLevel ?? item.wear_level;
+  const wearRange = item.wearRange ?? item.wear_range;
+  const customWear = item.customWear ?? item.custom_wear;
+  const salePrice = item.salePrice ?? item.sale_price;
+
+  return {
+    id: `material-${item.id}`,
+    date: item.date,
+    platform: item.platform,
+    name: item.name,
+    wearLevel: wearLevel || "-",
+    wearRange:
+      wearRange === "自定义"
+        ? customWear || "自定义"
+        : wearRange || "-",
+    cost: Number(item.cost || 0),
+    salePrice:
+      salePrice === "" || salePrice === null || salePrice === undefined
+        ? ""
+        : Number(salePrice || 0),
+    profit:
+      salePrice === "" || salePrice === null || salePrice === undefined
+        ? ""
+        : Number(salePrice || 0) - Number(item.cost || 0),
+    status: item.status,
+    itemType: "material",
+    rawId: item.id,
+    isContract: false,
+  };
+});
+const contractRows = contracts.map((item) => {
+  const outputName = item.outputName ?? item.output_name;
+  const outputWearLevel = item.outputWearLevel ?? item.output_wear_level;
+  const outputWearRange = item.outputWearRange ?? item.output_wear_range;
+  const outputCustomWear = item.outputCustomWear ?? item.output_custom_wear;
+  const refPrice = item.refPrice ?? item.ref_price;
+  const salePrice = item.salePrice ?? item.sale_price;
+
+  return {
+    id: `contract-${item.id}`,
+    date: item.date,
+    platform: "汰换",
+    name: outputName,
+    wearLevel: outputWearLevel || "-",
+    wearRange:
+      outputWearRange === "自定义"
+        ? outputCustomWear || "自定义"
+        : outputWearRange || "-",
+    cost: Number(refPrice || 0),
+    salePrice:
+      salePrice === "" || salePrice === null || salePrice === undefined
+        ? ""
+        : Number(salePrice || 0),
+    profit:
+      salePrice === "" || salePrice === null || salePrice === undefined
+        ? ""
+        : Number(salePrice || 0) - Number(refPrice || 0),
+    status: item.status,
+    itemType: "contract",
+    rawId: item.id,
+    isContract: true,
+  };
+});
     return [...materialRows, ...contractRows];
   }, [materials, contracts]);
 
@@ -331,38 +403,40 @@ const [materials, setMaterials] = useState<any[]>([]);
   }, [dailyDates, materials, contracts]);
 
 const addSingleMaterial = async () => {
-  if (!materialForm.name || !materialForm.cost) return;
+if (!currentUser || !materialForm.name || !materialForm.cost) return;
 
   const salePrice =
     materialForm.salePrice === "" ? null : Number(materialForm.salePrice);
 
   const payload = {
-    date: materialForm.date,
-    platform: materialForm.platform,
-    name: materialForm.name,
-    wear_level: materialForm.wearLevel,
-    wear_range: materialForm.wearRange,
-    custom_wear: materialForm.customWear || null,
-    cost: Number(materialForm.cost),
-    sale_price: salePrice,
-    status: salePrice === null ? "库存中" : "已售出",
-    mode: "single",
-  };
+  date: materialForm.date,
+  platform: materialForm.platform,
+  name: materialForm.name,
+  wear_level: materialForm.wearLevel,
+  wear_range: materialForm.wearRange,
+  custom_wear: materialForm.customWear || null,
+  cost: Number(materialForm.cost),
+  sale_price: salePrice,
+  status: salePrice === null ? "库存中" : "已售出",
+  mode: "single",
+  user_id: currentUser.id,
+};
 
   const { error } = await insertMaterial(payload);
 
 if (error) {
   console.error("保存材料失败", error);
-  alert(`保存材料失败：${error.message}`);
+  showToast(`保存材料失败：${error.message}`, "error");
   return;
 }
 
-  const { data, error: reloadError } = await fetchMaterials();
+const { data, error: reloadError } = await fetchMaterials(currentUser.id);
 
   if (reloadError) {
     console.error("刷新材料失败", reloadError);
   } else {
     setMaterials(data || []);
+    showToast("保存成功");
   }
 
   setMaterialForm((prev) => ({
@@ -377,29 +451,122 @@ if (error) {
   const addBatchPriceField = () => setBatchPrices((prev) => [...prev, ""]);
   const updateBatchPrice = (index, value) => setBatchPrices((prev) => prev.map((item, i) => (i === index ? value : item)));
 
-  const addBatchMaterials = () => {
-    if (!materialForm.name) return;
-    const prices = batchPrices.map((v) => String(v).trim()).filter(Boolean).map(Number).filter((v) => !Number.isNaN(v));
-    if (!prices.length) return;
-    const rows = prices.map((price, index) => ({ id: Date.now() + index, date: materialForm.date, platform: materialForm.platform, name: materialForm.name, wearLevel: materialForm.wearLevel, wearRange: materialForm.wearRange, customWear: materialForm.customWear, cost: price, salePrice: "", status: "库存中", mode: "batch" }));
-    setMaterials((prev) => [...rows, ...prev]);
-    setBatchPrices([""]);
-    setMaterialForm((prev) => ({ ...prev, name: "", customWear: "" }));
-  };
+const addBatchMaterials = async () => {
+  if (!currentUser || !materialForm.name) return;
+
+  const prices = batchPrices
+    .map((v) => String(v).trim())
+    .filter(Boolean)
+    .map(Number)
+    .filter((v) => !Number.isNaN(v));
+
+  if (!prices.length) return;
+
+  const payloads = prices.map((price) => ({
+    date: materialForm.date,
+    platform: materialForm.platform,
+    name: materialForm.name,
+    wear_level: materialForm.wearLevel,
+    wear_range: materialForm.wearRange,
+    custom_wear: materialForm.customWear || null,
+    cost: Number(price),
+    sale_price: null,
+    status: "库存中",
+    mode: "batch",
+    user_id: currentUser.id,
+  }));
+
+  const { error } = await supabase.from("materials").insert(payloads);
+
+  if (error) {
+    console.error("批量保存材料失败", error);
+    showToast(`保存材料失败：${error.message}`, "error");
+    return;
+  }
+
+  const { data, error: reloadError } = await fetchMaterials(currentUser.id);
+
+  if (reloadError) {
+    console.error("刷新材料失败", reloadError);
+  } else {
+    setMaterials(data || []);
+    showToast(`批量添加成功，共 ${payloads.length} 条`);
+  }
+
+  setBatchPrices([""]);
+  setMaterialForm((prev) => ({
+    ...prev,
+    name: "",
+    customWear: "",
+  }));
+};
 
   const syncContractResult = (nextResult) => {
     setContractForm((prev) => ({ ...prev, result: nextResult, furnaceRatePercent: nextResult === "成功" ? prev.furnaceRatePercent || "10" : "0" }));
   };
 
-  const addContract = () => {
-    if (!contractForm.outputName || !contractForm.refPrice) return;
-    const refPrice = Number(contractForm.refPrice || 0);
-    const furnaceFee = computeFurnaceFee(refPrice, contractForm.result, contractForm.furnaceRatePercent);
-    const salePrice = contractForm.salePrice ? Number(contractForm.salePrice) : "";
-    const rate = contractForm.result === "成功" ? Number(contractForm.furnaceRatePercent || 10) / 100 : 0;
-    setContracts((prev) => [{ id: Date.now(), date: contractForm.date, contractName: contractForm.contractName, outputName: contractForm.outputName, outputWearLevel: contractForm.outputWearLevel, outputWearRange: contractForm.outputWearRange, outputCustomWear: contractForm.outputCustomWear, refPrice, result: contractForm.result, furnaceRate: rate, furnaceFee, salePrice, status: salePrice ? "已售出" : "库存中", type: "普通汰换" }, ...prev]);
-    setContractForm((prev) => ({ ...prev, contractName: "", outputName: "", outputWearLevel: "久经沙场", outputWearRange: "0.15 - 0.18", outputCustomWear: "", refPrice: "", result: "成功", furnaceRatePercent: "10", salePrice: "" }));
+const addContract = async () => {
+  if (!currentUser || !contractForm.outputName || !contractForm.refPrice) return;
+
+  const refPrice = Number(contractForm.refPrice || 0);
+  const furnaceFee = computeFurnaceFee(
+    refPrice,
+    contractForm.result,
+    contractForm.furnaceRatePercent
+  );
+  const salePrice =
+    contractForm.salePrice === "" ? null : Number(contractForm.salePrice);
+
+  const payload = {
+    date: contractForm.date,
+    type: "普通汰换",
+    contract_name: contractForm.contractName,
+    output_name: contractForm.outputName,
+    output_wear_level: contractForm.outputWearLevel,
+    output_wear_range: contractForm.outputWearRange,
+    output_custom_wear: contractForm.outputCustomWear || null,
+    ref_price: refPrice,
+    result: contractForm.result,
+    furnace_rate:
+      contractForm.result === "成功"
+        ? Number(contractForm.furnaceRatePercent || 10) / 100
+        : 0,
+    furnace_fee: furnaceFee,
+    sale_price: salePrice,
+    status: salePrice === null ? "库存中" : "已售出",
+    user_id: currentUser.id,
   };
+
+  const { error } = await insertContract(payload);
+
+  if (error) {
+    console.error("保存汰换记录失败", error);
+    showToast(`保存汰换记录失败：${error.message}`, "error");
+    return;
+  }
+
+  const { data, error: reloadError } = await fetchContracts(currentUser.id);
+
+  if (reloadError) {
+    console.error("刷新汰换记录失败", reloadError);
+  } else {
+    setContracts(data || []);
+    showToast("汰换记录保存成功");
+  }
+
+  setContractForm((prev) => ({
+    ...prev,
+    contractName: "",
+    outputName: "",
+    outputWearLevel: "久经沙场",
+    outputWearRange: "0.15 - 0.18",
+    outputCustomWear: "",
+    refPrice: "",
+    result: "成功",
+    furnaceRatePercent: "10",
+    salePrice: "",
+  }));
+};
 
   const togglePackageMaterial = (id) => {
     setPackageForm((prev) => {
@@ -459,15 +626,59 @@ if (error) {
   const selectAllVisible = () => setSelectedIds(filteredInventory.map((item) => item.id));
   const clearSelected = () => setSelectedIds([]);
 
-  const deleteSelected = () => {
-    if (!selectedIds.length) return;
-    if (!window.confirm("删除不可再恢复，是否确认删除？")) return;
-    const materialIds = selectedIds.filter((id) => id.startsWith("material-")).map((id) => Number(id.replace("material-", "")));
-    const contractIds = selectedIds.filter((id) => id.startsWith("contract-")).map((id) => Number(id.replace("contract-", "")));
-    setMaterials((prev) => prev.filter((item) => !materialIds.includes(item.id)));
-    setContracts((prev) => prev.filter((item) => !contractIds.includes(item.id)));
-    setSelectedIds([]);
-  };
+const deleteSelected = async () => {
+  if (!selectedIds.length) return;
+  if (!window.confirm("删除不可再恢复，是否确认删除？")) return;
+
+  const materialIds = selectedIds
+    .filter((id) => id.startsWith("material-"))
+    .map((id) => Number(id.replace("material-", "")));
+
+  const contractIds = selectedIds
+    .filter((id) => id.startsWith("contract-"))
+    .map((id) => Number(id.replace("contract-", "")));
+
+  if (materialIds.length) {
+    const { error } = await deleteMaterialsByIds(materialIds);
+    if (error) {
+      console.error("删除材料失败", error);
+      showToast(`删除材料失败：${error.message}`, "error");
+      return;
+    }
+  }
+
+  if (contractIds.length) {
+    const { error } = await deleteContractsByIds(contractIds);
+    if (error) {
+      console.error("删除汰换记录失败", error);
+      showToast(`删除汰换记录失败：${error.message}`, "error");
+      return;
+    }
+  }
+
+  if (currentUser?.id) {
+    const { data: materialData, error: materialReloadError } =
+      await fetchMaterials(currentUser.id);
+
+    if (materialReloadError) {
+      console.error("刷新材料失败", materialReloadError);
+    } else {
+      setMaterials(materialData || []);
+    }
+
+    const { data: contractData, error: contractReloadError } =
+      await fetchContracts(currentUser.id);
+
+    if (contractReloadError) {
+      console.error("刷新汰换记录失败", contractReloadError);
+    } else {
+      setContracts(contractData || []);
+    }
+  }
+
+  setSelectedIds([]);
+  showToast("删除成功");
+};
 
   const addInventoryItem = () => {
     setMaterials((prev) => [{ id: Date.now(), date: selectedDailyDate || "2026-03-10", platform: "BUFF", name: "", wearLevel: "久经沙场", wearRange: "0.15 - 0.18", customWear: "", cost: 0, salePrice: "", status: "库存中", mode: "single" }, ...prev]);
@@ -478,15 +689,50 @@ if (error) {
 
   return (
     <div className="min-h-screen bg-slate-50 p-6">
+      {toast.show && (
+  <div
+    style={{
+      position: "fixed",
+      top: 20,
+      right: 20,
+      zIndex: 9999,
+      padding: "12px 16px",
+      borderRadius: 14,
+      color: "#fff",
+      fontSize: 14,
+      fontWeight: 700,
+      background:
+        toast.type === "success" ? "rgba(15, 23, 42, 0.92)" : "rgba(185, 28, 28, 0.92)",
+      boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
+      transition: "all 0.3s ease",
+    }}
+  >
+    {toast.message}
+  </div>
+)}
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex flex-col gap-3 rounded-3xl bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">沙鹰哥炼金账本v1</h1>
-          </div>
-          <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
-            总收益 <span className="ml-2 text-lg font-semibold text-slate-900">{money(stats.totalProfit)}</span>
-          </div>
-        </div>
+  <div>
+    <h1 className="text-3xl font-bold tracking-tight text-slate-900">XiaoLu记账1.0</h1>
+    <div className="mt-2 text-sm text-slate-500">
+      当前用户：{currentUser?.email ? currentUser.email.split("@")[0] : "未登录"}
+    </div>
+  </div>
+
+  <div className="flex items-center gap-3">
+    <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+      总收益 <span className="ml-2 text-lg font-semibold text-slate-900">{money(stats.totalProfit)}</span>
+    </div>
+
+    <button
+      type="button"
+      onClick={handleLogout}
+      className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+    >
+      退出登录
+    </button>
+  </div>
+</div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <StatCard title="材料毛利" value={money(stats.materialProfit)} hidden={!visibleStatMap.materialProfit} icon={<Wallet className="h-8 w-8 text-slate-400" />} onToggle={() => toggleStatsVisibility("materialProfit")} />
@@ -735,16 +981,28 @@ if (error) {
                     </TableHeader>
                     <TableBody>
                       {contracts.map((item) => {
-                        const profit = item.salePrice ? Number(item.salePrice) - Number(item.refPrice) : 0;
-                        return (
+  const contractName = item.contractName ?? item.contract_name;
+  const outputName = item.outputName ?? item.output_name;
+  const outputWearLevel = item.outputWearLevel ?? item.output_wear_level;
+  const outputWearRange = item.outputWearRange ?? item.output_wear_range;
+  const outputCustomWear = item.outputCustomWear ?? item.output_custom_wear;
+  const refPrice = item.refPrice ?? item.ref_price;
+  const furnaceFee = item.furnaceFee ?? item.furnace_fee;
+  const salePrice = item.salePrice ?? item.sale_price;
+  const type = item.type ?? "普通汰换";
+  const profit = salePrice ? Number(salePrice) - Number(refPrice || 0) : 0;
+
+  return (
                           <TableRow key={item.id}>
                             <TableCell>{item.date}</TableCell>
-                            <TableCell>{item.type || "普通汰换"}</TableCell>
-                            <TableCell>{item.contractName}</TableCell>
-                            <TableCell>{item.outputName}</TableCell>
-                            <TableCell>{money(item.refPrice)}</TableCell>
-                            <TableCell>{item.outputWearLevel}</TableCell>
-                            <TableCell>{item.outputWearRange === "自定义" ? item.outputCustomWear || "自定义" : item.outputWearRange}</TableCell>
+                            <TableCell>{type}</TableCell>
+<TableCell>{contractName}</TableCell>
+<TableCell>{outputName}</TableCell>
+<TableCell>{money(refPrice)}</TableCell>
+<TableCell>{outputWearLevel}</TableCell>
+<TableCell>{outputWearRange === "自定义" ? outputCustomWear || "自定义" : outputWearRange}</TableCell>
+<TableCell>{money(furnaceFee)}</TableCell>
+<TableCell>{salePrice ? money(salePrice) : "-"}</TableCell>
                             <TableCell><Badge className={item.result === "成功" ? "rounded-full bg-green-100 text-green-700 hover:bg-green-100" : "rounded-full bg-red-100 text-red-700 hover:bg-red-100"}>{item.result}</Badge></TableCell>
                             <TableCell>{money(item.furnaceFee)}</TableCell>
                             <TableCell>{item.salePrice ? money(item.salePrice) : "-"}</TableCell>
@@ -771,9 +1029,7 @@ if (error) {
                     </Button>
                     {editMode && (
                       <>
-                        <Button type="button" variant="outline" className="rounded-2xl" onClick={addInventoryItem}>
-                          <Plus className="mr-2 h-4 w-4" />新增
-                        </Button>
+                      
                         <Button type="button" variant="outline" className="rounded-2xl" onClick={selectAllVisible}>全选</Button>
                         <Button type="button" variant="outline" className="rounded-2xl" onClick={clearSelected}>全不选</Button>
                         <Button type="button" variant="destructive" className="rounded-2xl" onClick={deleteSelected}>
@@ -936,6 +1192,27 @@ if (error) {
     </div>
   );
 }
+
+function showToast(message: string, type: "success" | "error" = "success") {
+  if (toastTimerRef.current) {
+    clearTimeout(toastTimerRef.current);
+  }
+
+  setToast({
+    show: true,
+    message,
+    type,
+  });
+
+  toastTimerRef.current = setTimeout(() => {
+    setToast((prev) => ({
+      ...prev,
+      show: false,
+    }));
+  }, 2200);
+}
+
+
 
 function StatCard({ title, value, hidden, icon, onToggle }) {
   return (
