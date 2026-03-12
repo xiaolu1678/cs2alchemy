@@ -63,7 +63,7 @@ function calendarMatrix(year, monthIndex) {
   return cells;
 }
 
-function getDailySummary(date, materials, contracts) {
+function getDailySummary(date, materials, contracts, dailyExtras = {}) {
   const dayMaterials = materials.filter((item) => item.date === date);
   const dayContracts = contracts.filter((item) => item.date === date);
   const materialProfit = dayMaterials.reduce((sum, item) => {
@@ -93,11 +93,13 @@ function getDailySummary(date, materials, contracts) {
     value: Number(item.furnaceFee || 0),
     note: `${item.outputName}`,
   }));
+  const extraValue = Number(dailyExtras?.[date] || 0);
   return {
     materialProfit,
     productProfit,
     furnaceIncome,
-    totalProfit: materialProfit + productProfit + furnaceIncome,
+totalProfit: materialProfit + productProfit + furnaceIncome + extraValue,
+extraValue,
     materialDetails,
     productDetails,
     furnaceDetails,
@@ -107,6 +109,32 @@ function getDailySummary(date, materials, contracts) {
 export default function CS2TradeRegisterPrototype() {
 
 const router = useRouter();
+const [toast, setToast] = React.useState({
+  show: false,
+  message: "",
+  type: "success",
+});
+const toastTimerRef = React.useRef<any>(null);
+function showToast(message: string, type: "success" | "error" = "success") {
+  if (toastTimerRef.current) {
+    clearTimeout(toastTimerRef.current);
+  }
+
+  setToast({
+    show: true,
+    message,
+    type,
+  });
+
+  toastTimerRef.current = setTimeout(() => {
+    setToast((prev) => ({
+      ...prev,
+      show: false,
+    }));
+  }, 2200);
+}
+
+
 
 React.useEffect(() => {
   async function checkAuth() {
@@ -156,33 +184,33 @@ async function loadContracts(userId: string) {
   setContracts(data || []);
 }
 
-const [toast, setToast] = React.useState({
-  show: false,
-  message: "",
-  type: "success",
-});
 
-const toastTimerRef = React.useRef<any>(null);
+
+  const [showAllMaterials, setShowAllMaterials] = useState(false);
+
   const [materials, setMaterials] = useState<any[]>([]);
   const [contracts, setContracts] = useState<any[]>([]);
   const [authChecked, setAuthChecked] = React.useState(false);
   const [currentUser, setCurrentUser] = React.useState<any>(null);
   const [keyword, setKeyword] = useState("");
-  const [materialMode, setMaterialMode] = useState("single");
+  const batchInputRefs = React.useRef<Array<HTMLInputElement | null>>([]);
   const [exchangeMode, setExchangeMode] = useState("普通汰换");
   const [editMode, setEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedDailyDate, setSelectedDailyDate] = useState("2026-03-10");
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [dailyExtras, setDailyExtras] = useState<Record<string, string>>({});
   const [detailPanel, setDetailPanel] = useState("material");
-  const [visibleStatMap, setVisibleStatMap] = useState({
-    materialProfit: true,
-    productProfit: true,
-    furnaceIncome: true,
-    stockCount: true,
-    stockCost: true,
-  });
+const [visibleStatMap, setVisibleStatMap] = useState({
+  materialProfit: true,
+  productProfit: true,
+  furnaceIncome: true,
+  stockCount: true,
+  stockCost: true,
+  totalProfit: true,
+});
   const [materialForm, setMaterialForm] = useState({
-    date: "2026-03-10",
+    date: new Date().toISOString().slice(0, 10),
     platform: "BUFF",
     name: "",
     wearLevel: "久经沙场",
@@ -200,7 +228,7 @@ const toastTimerRef = React.useRef<any>(null);
     wearRange: "全部",
   });
   const [contractForm, setContractForm] = useState({
-    date: "2026-03-10",
+    date: new Date().toISOString().slice(0, 10),
     contractName: "",
     outputName: "",
     outputWearLevel: "久经沙场",
@@ -270,6 +298,10 @@ const toastTimerRef = React.useRef<any>(null);
       return text.includes(keyword.toLowerCase());
     });
   }, [materials, keyword]);
+const visibleMaterials = useMemo(() => {
+  return showAllMaterials ? filteredMaterials : filteredMaterials.slice(0, 10);
+}, [filteredMaterials, showAllMaterials]);
+
 
   const inventoryRows = useMemo(() => {
 const materialRows = materials.map((item) => {
@@ -373,7 +405,10 @@ const contractRows = contracts.map((item) => {
   const currentPackageWearRanges = wearRanges[packageForm.outputWearLevel] || [];
 
   const dailyDates = useMemo(() => [...new Set([...materials.map((item) => item.date), ...contracts.map((item) => item.date)])].sort((a, b) => b.localeCompare(a)), [materials, contracts]);
-  const dailySummary = useMemo(() => getDailySummary(selectedDailyDate, materials, contracts), [selectedDailyDate, materials, contracts]);
+  const dailySummary = useMemo(
+  () => getDailySummary(selectedDailyDate, materials, contracts, dailyExtras),
+  [selectedDailyDate, materials, contracts, dailyExtras]
+);
   const inventoryOnlyMaterials = useMemo(() => materials.filter((item) => item.status === "库存中"), [materials]);
   const filteredPackageMaterials = useMemo(() => {
     return inventoryOnlyMaterials.filter((item) => {
@@ -397,7 +432,7 @@ const contractRows = contracts.map((item) => {
   const dateSummaryMap = useMemo(() => {
     const map = {};
     dailyDates.forEach((date) => {
-      map[date] = getDailySummary(date, materials, contracts);
+map[date] = getDailySummary(date, materials, contracts, dailyExtras);
     });
     return map;
   }, [dailyDates, materials, contracts]);
@@ -452,7 +487,19 @@ const { data, error: reloadError } = await fetchMaterials(currentUser.id);
   const updateBatchPrice = (index, value) => setBatchPrices((prev) => prev.map((item, i) => (i === index ? value : item)));
 
 const addBatchMaterials = async () => {
-  if (!currentUser || !materialForm.name) return;
+  console.log("addBatchMaterials clicked");
+
+  if (!currentUser) {
+    console.log("no currentUser");
+    showToast("当前用户不存在，请重新登录", "error");
+    return;
+  }
+
+  if (!materialForm.name.trim()) {
+    console.log("material name empty");
+    showToast("材料名称不能为空", "error");
+    return;
+  }
 
   const prices = batchPrices
     .map((v) => String(v).trim())
@@ -460,7 +507,12 @@ const addBatchMaterials = async () => {
     .map(Number)
     .filter((v) => !Number.isNaN(v));
 
-  if (!prices.length) return;
+  console.log("parsed prices:", prices);
+
+  if (!prices.length) {
+    showToast("请至少填写一个有效进价", "error");
+    return;
+  }
 
   const payloads = prices.map((price) => ({
     date: materialForm.date,
@@ -476,29 +528,44 @@ const addBatchMaterials = async () => {
     user_id: currentUser.id,
   }));
 
+  console.log("payloads to insert:", payloads);
+
   const { error } = await supabase.from("materials").insert(payloads);
 
   if (error) {
     console.error("批量保存材料失败", error);
-    showToast(`保存材料失败：${error.message}`, "error");
+    showToast(`批量保存材料失败：${error.message}`, "error");
     return;
   }
+
+  console.log("insert success");
 
   const { data, error: reloadError } = await fetchMaterials(currentUser.id);
 
   if (reloadError) {
     console.error("刷新材料失败", reloadError);
-  } else {
-    setMaterials(data || []);
-    showToast(`批量添加成功，共 ${payloads.length} 条`);
+    showToast(`刷新材料失败：${reloadError.message}`, "error");
+    return;
   }
 
+  console.log("reload success", data);
+
+  setMaterials(data || []);
+  showToast(`批量添加成功，共 ${payloads.length} 条`);
+
   setBatchPrices([""]);
-  setMaterialForm((prev) => ({
-    ...prev,
+  setMaterialForm({
+    date: new Date().toISOString().slice(0, 10),
+    platform: "BUFF",
     name: "",
+    wearLevel: "久经沙场",
+    wearRange: "0.15 - 0.18",
     customWear: "",
-  }));
+    cost: "",
+    salePrice: "",
+  });
+
+  console.log("form reset done");
 };
 
   const syncContractResult = (nextResult) => {
@@ -720,9 +787,25 @@ const deleteSelected = async () => {
   </div>
 
   <div className="flex items-center gap-3">
-    <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
-      总收益 <span className="ml-2 text-lg font-semibold text-slate-900">{money(stats.totalProfit)}</span>
-    </div>
+ <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+  <div className="flex items-center gap-2">
+    <span>总收益</span>
+    <button
+      type="button"
+      className="rounded-full"
+      onClick={() => toggleStatsVisibility("totalProfit")}
+    >
+      {visibleStatMap.totalProfit ? (
+        <EyeOff className="h-4 w-4 text-slate-500" />
+      ) : (
+        <Eye className="h-4 w-4 text-slate-500" />
+      )}
+    </button>
+  </div>
+  <span className="ml-2 text-lg font-semibold text-slate-900">
+    {visibleStatMap.totalProfit ? money(stats.totalProfit) : "••••"}
+  </span>
+</div>
 
     <button
       type="button"
@@ -744,10 +827,10 @@ const deleteSelected = async () => {
 
         <Tabs defaultValue="materials" className="space-y-6" onValueChange={() => { setEditMode(false); setSelectedIds([]); }}>
           <TabsList className="grid w-full grid-cols-4 rounded-2xl bg-white p-1 shadow-sm">
-            <TabsTrigger value="materials" className="rounded-xl">材料登记</TabsTrigger>
-            <TabsTrigger value="exchange" className="rounded-xl">汰换记录</TabsTrigger>
-            <TabsTrigger value="inventory" className="rounded-xl">库存管理</TabsTrigger>
-            <TabsTrigger value="daily" className="rounded-xl">每日收益</TabsTrigger>
+ <TabsTrigger value="materials" className="rounded-xl">材料登记</TabsTrigger>
+<TabsTrigger value="inventory" className="rounded-xl">库存管理</TabsTrigger>
+<TabsTrigger value="exchange" className="rounded-xl">汰换记录</TabsTrigger>
+<TabsTrigger value="daily" className="rounded-xl">每日收益</TabsTrigger>
           </TabsList>
 
           <TabsContent value="materials" className="space-y-6">
@@ -757,10 +840,7 @@ const deleteSelected = async () => {
                   <CardTitle>新增材料</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
-                    <Button type="button" variant={materialMode === "single" ? "default" : "ghost"} className="rounded-xl" onClick={() => setMaterialMode("single")}>单个添加</Button>
-                    <Button type="button" variant={materialMode === "batch" ? "default" : "ghost"} className="rounded-xl" onClick={() => setMaterialMode("batch")}>批量添加</Button>
-                  </div>
+                  
                   <FieldDate label="日期" value={materialForm.date} onChange={(value) => setMaterialForm({ ...materialForm, date: value })} />
                   <SelectField label="平台" value={materialForm.platform} options={platformOptions} onChange={(value) => setMaterialForm({ ...materialForm, platform: value })} />
                   <div className="space-y-2">
@@ -773,41 +853,74 @@ const deleteSelected = async () => {
                     <SelectField label="磨损区间" value={materialForm.wearRange} options={currentWearRanges} onChange={(value) => setMaterialForm({ ...materialForm, wearRange: value, customWear: value === "自定义" ? materialForm.customWear : "" })} />
                   </div>
                   {materialForm.wearRange === "自定义" && <TextField label="自定义磨损 / 区间" placeholder="例如：0.163 或 0.15 - 0.17" value={materialForm.customWear} onChange={(value) => setMaterialForm({ ...materialForm, customWear: value })} />}
-                  {materialMode === "single" ? (
-                    <>
-                      <div className="grid grid-cols-2 gap-3">
-                        <NumberField label="进价" placeholder="120" value={materialForm.cost} onChange={(value) => setMaterialForm({ ...materialForm, cost: value })} />
-                        <NumberField label="售价（可后补）" placeholder="145" value={materialForm.salePrice} onChange={(value) => setMaterialForm({ ...materialForm, salePrice: value })} />
-                      </div>
-                      <InfoBox label="自动毛利" value={money(Number(materialForm.salePrice || 0) - Number(materialForm.cost || 0))} />
-                      <Button onClick={addSingleMaterial} className="w-full rounded-2xl"><Plus className="mr-2 h-4 w-4" />保存单条材料记录</Button>
-                    </>
-                  ) : (
+                  
                     <>
                       <div className="space-y-2">
                         <Label>批量进价</Label>
                         <div className="space-y-2">
                           {batchPrices.map((price, index) => (
-                            <Input key={index} type="number" placeholder={`第 ${index + 1} 个进价`} value={price} onChange={(e) => {
-                              updateBatchPrice(index, e.target.value);
-                              if (index === batchPrices.length - 1 && e.target.value.trim() !== "") addBatchPriceField();
-                            }} />
+                            <Input
+  key={index}
+  ref={(el) => {
+    batchInputRefs.current[index] = el;
+  }}
+  type="number"
+  placeholder={`第 ${index + 1} 个进价`}
+  value={price}
+  onChange={(e) => {
+    updateBatchPrice(index, e.target.value);
+    if (index === batchPrices.length - 1 && e.target.value.trim() !== "") {
+      addBatchPriceField();
+    }
+  }}
+  onKeyDown={(e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+
+      if (index === batchPrices.length - 1) {
+        addBatchPriceField();
+        setTimeout(() => {
+          batchInputRefs.current[index + 1]?.focus();
+        }, 0);
+      } else {
+        batchInputRefs.current[index + 1]?.focus();
+      }
+    }
+  }}
+/>
                           ))}
                         </div>
                       </div>
-                      <Button onClick={addBatchMaterials} className="w-full rounded-2xl"><Plus className="mr-2 h-4 w-4" />按已填写进价批量新增</Button>
+                      <Button onClick={addBatchMaterials} className="w-full rounded-2xl"><Plus className="mr-2 h-4 w-4" />完成添加</Button>
                     </>
-                  )}
+                  
                 </CardContent>
               </Card>
 
               <Card className="rounded-3xl border-0 shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>材料记录</CardTitle>
-                  <div className="relative w-full max-w-sm">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <Input className="pl-9" placeholder="搜索材料 / 平台 / 状态" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
-                  </div>
+                  <div className="flex w-full max-w-xl items-center gap-3">
+  <div className="relative flex-1">
+    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+    <Input
+      className="pl-9"
+      placeholder="搜索材料 / 平台 / 状态"
+      value={keyword}
+      onChange={(e) => setKeyword(e.target.value)}
+    />
+  </div>
+
+  {filteredMaterials.length > 10 && (
+    <button
+      type="button"
+      onClick={() => setShowAllMaterials((prev) => !prev)}
+      className="shrink-0 rounded-xl border px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+    >
+      {showAllMaterials ? "收起 ↑" : "查看全部 ↓"}
+    </button>
+  )}
+</div>
                 </CardHeader>
                 <CardContent>
                   <Table>
@@ -825,7 +938,7 @@ const deleteSelected = async () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredMaterials.map((item) => {
+                      {visibleMaterials.map((item) => {
   const wearLevel = item.wearLevel ?? item.wear_level;
   const wearRange = item.wearRange ?? item.wear_range;
   const customWear = item.customWear ?? item.custom_wear;
@@ -860,6 +973,137 @@ const deleteSelected = async () => {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+                    <TabsContent value="inventory">
+            <Card className="rounded-3xl border-0 shadow-sm">
+              <CardHeader>
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <CardTitle>库存管理</CardTitle>
+                  <div className="flex flex-wrap gap-2">
+                    {!editMode && (
+  <Button
+    type="button"
+    variant="outline"
+    className="rounded-2xl"
+    onClick={() => {
+      setEditMode(true);
+      setSelectedIds([]);
+    }}
+  >
+    <Pencil className="mr-2 h-4 w-4" />
+    编辑总开关
+  </Button>
+)}
+                    {editMode && (
+                      <>
+                      
+                        <Button type="button" variant="outline" className="rounded-2xl" onClick={selectAllVisible}>全选</Button>
+                        <Button type="button" variant="outline" className="rounded-2xl" onClick={clearSelected}>全不选</Button>
+                        <Button type="button" variant="destructive" className="rounded-2xl" onClick={deleteSelected}>
+                          <Trash2 className="mr-2 h-4 w-4" />删除
+                        </Button>
+                        <Button
+  type="button"
+  variant="default"
+  className="rounded-2xl"
+  onClick={() => {
+    setEditMode(false);
+    setSelectedIds([]);
+  }}
+>
+  ✅完成编辑
+</Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                  <FieldDate label="日期筛选" value={inventoryFilters.date} onChange={(value) => setInventoryFilters({ ...inventoryFilters, date: value })} lang="en-CA" />
+                  <SelectField label="平台筛选" value={inventoryFilters.platform} options={["全部", ...inventoryPlatformOptions]} onChange={(value) => setInventoryFilters({ ...inventoryFilters, platform: value })} />
+                  <TextField label="名称筛选" placeholder="输入名称关键词" value={inventoryFilters.name} onChange={(value) => setInventoryFilters({ ...inventoryFilters, name: value })} />
+                  <SelectField label="磨损等级筛选" value={inventoryFilters.wearLevel} options={["全部", ...wearLevelOptions]} onChange={(value) => setInventoryFilters({ ...inventoryFilters, wearLevel: value })} />
+                  <SelectField label="磨损区间筛选" value={inventoryFilters.wearRange} options={inventoryWearRangeOptions} onChange={(value) => setInventoryFilters({ ...inventoryFilters, wearRange: value })} />
+                </div>
+
+                {editMode && (
+                  <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    已选 {selectedRows.length} 项 ｜ 求和 {money(selectedSum)} ｜ 平均 {money(selectedAvg)}
+                  </div>
+                )}
+
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {editMode && <TableHead className="w-12">选择</TableHead>}
+                      <TableHead>日期</TableHead>
+                      <TableHead>平台</TableHead>
+                      <TableHead>名称</TableHead>
+                      <TableHead>磨损等级</TableHead>
+                      <TableHead>磨损区间</TableHead>
+                      <TableHead>参考价/成本</TableHead>
+                      <TableHead>售价</TableHead>
+                      <TableHead>库存状态</TableHead>
+                      <TableHead>利润</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredInventory.map((item) => (
+                      <TableRow key={item.id}>
+                        {editMode && (
+                          <TableCell>
+                            <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={(e) => toggleSelectRow(item.id, e.target.checked)} />
+                          </TableCell>
+                        )}
+                        <TableCell>{formatInventoryDate(item.date, Boolean(inventoryFilters.date))}</TableCell>
+                        <TableCell>
+                          {editMode && !item.isContract ? (
+                            <Select value={item.platform} onValueChange={(value) => updateInventoryField(item, "platform", value)}>
+                              <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {platformOptions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          ) : item.platform}
+                        </TableCell>
+                        <TableCell>
+                          {editMode ? <Input value={item.name} onChange={(e) => updateInventoryField(item, "name", e.target.value)} /> : item.name}
+                        </TableCell>
+                        <TableCell>
+                          {editMode ? (
+                            <Select value={item.wearLevel} onValueChange={(value) => updateInventoryField(item, "wearLevel", value)}>
+                              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {wearLevelOptions.map((level) => <SelectItem key={level} value={level}>{level}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          ) : item.wearLevel}
+                        </TableCell>
+                        <TableCell>
+                          {editMode ? (
+                            <Select value={item.wearRange} onValueChange={(value) => updateInventoryField(item, "wearRange", value)}>
+                              <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {(wearRanges[item.wearLevel] || [item.wearRange]).map((range) => <SelectItem key={range} value={range}>{range}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          ) : item.wearRange}
+                        </TableCell>
+                        <TableCell>
+                          {editMode ? <Input type="number" value={item.cost} onChange={(e) => updateInventoryField(item, "cost", e.target.value)} /> : money(item.cost)}
+                        </TableCell>
+                        <TableCell>
+                          {editMode ? <Input type="number" value={item.salePrice === "" ? "" : item.salePrice} onChange={(e) => updateInventoryField(item, "salePrice", e.target.value)} /> : item.salePrice === "" ? "-" : money(item.salePrice)}
+                        </TableCell>
+                        <TableCell><Badge className={item.status === "库存中" ? "rounded-full bg-amber-100 text-amber-800 hover:bg-amber-100" : "rounded-full bg-slate-900 text-white hover:bg-slate-900"}>{item.status}</Badge></TableCell>
+                        <TableCell>{item.profit === "" ? "-" : money(item.profit)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="exchange" className="space-y-6">
@@ -1018,115 +1262,7 @@ const deleteSelected = async () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="inventory">
-            <Card className="rounded-3xl border-0 shadow-sm">
-              <CardHeader>
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <CardTitle>库存管理</CardTitle>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant={editMode ? "default" : "outline"} className="rounded-2xl" onClick={() => { setEditMode((prev) => !prev); setSelectedIds([]); }}>
-                      <Pencil className="mr-2 h-4 w-4" />{editMode ? "关闭编辑" : "编辑总开关"}
-                    </Button>
-                    {editMode && (
-                      <>
-                      
-                        <Button type="button" variant="outline" className="rounded-2xl" onClick={selectAllVisible}>全选</Button>
-                        <Button type="button" variant="outline" className="rounded-2xl" onClick={clearSelected}>全不选</Button>
-                        <Button type="button" variant="destructive" className="rounded-2xl" onClick={deleteSelected}>
-                          <Trash2 className="mr-2 h-4 w-4" />删除
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                  <FieldDate label="日期筛选" value={inventoryFilters.date} onChange={(value) => setInventoryFilters({ ...inventoryFilters, date: value })} lang="en-CA" />
-                  <SelectField label="平台筛选" value={inventoryFilters.platform} options={["全部", ...inventoryPlatformOptions]} onChange={(value) => setInventoryFilters({ ...inventoryFilters, platform: value })} />
-                  <TextField label="名称筛选" placeholder="输入名称关键词" value={inventoryFilters.name} onChange={(value) => setInventoryFilters({ ...inventoryFilters, name: value })} />
-                  <SelectField label="磨损等级筛选" value={inventoryFilters.wearLevel} options={["全部", ...wearLevelOptions]} onChange={(value) => setInventoryFilters({ ...inventoryFilters, wearLevel: value })} />
-                  <SelectField label="磨损区间筛选" value={inventoryFilters.wearRange} options={inventoryWearRangeOptions} onChange={(value) => setInventoryFilters({ ...inventoryFilters, wearRange: value })} />
-                </div>
 
-                {editMode && (
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    已选 {selectedRows.length} 项 ｜ 求和 {money(selectedSum)} ｜ 平均 {money(selectedAvg)}
-                  </div>
-                )}
-
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      {editMode && <TableHead className="w-12">选择</TableHead>}
-                      <TableHead>日期</TableHead>
-                      <TableHead>平台</TableHead>
-                      <TableHead>名称</TableHead>
-                      <TableHead>磨损等级</TableHead>
-                      <TableHead>磨损区间</TableHead>
-                      <TableHead>参考价/成本</TableHead>
-                      <TableHead>售价</TableHead>
-                      <TableHead>库存状态</TableHead>
-                      <TableHead>利润</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredInventory.map((item) => (
-                      <TableRow key={item.id}>
-                        {editMode && (
-                          <TableCell>
-                            <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={(e) => toggleSelectRow(item.id, e.target.checked)} />
-                          </TableCell>
-                        )}
-                        <TableCell>{formatInventoryDate(item.date, Boolean(inventoryFilters.date))}</TableCell>
-                        <TableCell>
-                          {editMode && !item.isContract ? (
-                            <Select value={item.platform} onValueChange={(value) => updateInventoryField(item, "platform", value)}>
-                              <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {platformOptions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          ) : item.platform}
-                        </TableCell>
-                        <TableCell>
-                          {editMode ? <Input value={item.name} onChange={(e) => updateInventoryField(item, "name", e.target.value)} /> : item.name}
-                        </TableCell>
-                        <TableCell>
-                          {editMode ? (
-                            <Select value={item.wearLevel} onValueChange={(value) => updateInventoryField(item, "wearLevel", value)}>
-                              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {wearLevelOptions.map((level) => <SelectItem key={level} value={level}>{level}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          ) : item.wearLevel}
-                        </TableCell>
-                        <TableCell>
-                          {editMode ? (
-                            <Select value={item.wearRange} onValueChange={(value) => updateInventoryField(item, "wearRange", value)}>
-                              <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {(wearRanges[item.wearLevel] || [item.wearRange]).map((range) => <SelectItem key={range} value={range}>{range}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          ) : item.wearRange}
-                        </TableCell>
-                        <TableCell>
-                          {editMode ? <Input type="number" value={item.cost} onChange={(e) => updateInventoryField(item, "cost", e.target.value)} /> : money(item.cost)}
-                        </TableCell>
-                        <TableCell>
-                          {editMode ? <Input type="number" value={item.salePrice === "" ? "" : item.salePrice} onChange={(e) => updateInventoryField(item, "salePrice", e.target.value)} /> : item.salePrice === "" ? "-" : money(item.salePrice)}
-                        </TableCell>
-                        <TableCell><Badge className={item.status === "库存中" ? "rounded-full bg-amber-100 text-amber-800 hover:bg-amber-100" : "rounded-full bg-slate-900 text-white hover:bg-slate-900"}>{item.status}</Badge></TableCell>
-                        <TableCell>{item.profit === "" ? "-" : money(item.profit)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="daily">
             <div className="grid gap-6 lg:grid-cols-[1fr,1fr]">
@@ -1134,29 +1270,72 @@ const deleteSelected = async () => {
                 <CardHeader>
                   <CardTitle>收益日历</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-2 text-sm text-slate-500">
-                    <CalendarDays className="h-4 w-4" />
-                    <span>{calendarYear} 年 {calendarMonth} 月</span>
-                  </div>
-                  <div className="grid grid-cols-7 gap-2 text-center text-xs text-slate-500">
-                    {['日','一','二','三','四','五','六'].map((d) => <div key={d}>{d}</div>)}
-                  </div>
-                  <div className="grid grid-cols-7 gap-2">
-                    {monthCells.map((day, index) => {
-                      if (!day) return <div key={`empty-${index}`} className="h-20 rounded-2xl bg-transparent" />;
-                      const dateKey = `${calendarYear}-${String(calendarMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                      const summary = dateSummaryMap[dateKey];
-                      if (!summary) return <div key={dateKey} className="h-20 rounded-2xl border border-dashed border-slate-200 bg-white/60 p-2 text-slate-300">{day}</div>;
-                      return (
-                        <button key={dateKey} type="button" onClick={() => setSelectedDailyDate(dateKey)} className={`h-20 rounded-2xl border p-2 text-left ${selectedDailyDate === dateKey ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white"}`}>
-                          <div className="text-sm font-semibold">{day}</div>
-                          <div className="mt-2 text-xs">{money(summary.totalProfit)}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </CardContent>
+                <CardContent
+  className="space-y-4"
+  onMouseLeave={() => setShowCalendar(false)}
+>
+  <button
+    type="button"
+    onClick={() => setShowCalendar((prev) => !prev)}
+    className="flex w-full items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-left"
+  >
+    <div>
+      <div className="text-sm text-slate-500">当天收益</div>
+      <div className="mt-1 text-lg font-semibold text-slate-900">
+        {money(dailySummary.totalProfit)}
+      </div>
+    </div>
+    <div className="text-sm text-slate-500">
+      {showCalendar ? "收起 ↑" : "展开日历 ↓"}
+    </div>
+  </button>
+
+  {showCalendar && (
+    <>
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        <CalendarDays className="h-4 w-4" />
+        <span>{calendarYear} 年 {calendarMonth} 月</span>
+      </div>
+
+      <div className="grid grid-cols-7 gap-2 text-center text-xs text-slate-500">
+        {['日','一','二','三','四','五','六'].map((d) => <div key={d}>{d}</div>)}
+      </div>
+
+      <div className="grid grid-cols-7 gap-2">
+        {monthCells.map((day, index) => {
+          if (!day) return <div key={`empty-${index}`} className="h-20 rounded-2xl bg-transparent" />;
+          const dateKey = `${calendarYear}-${String(calendarMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const summary = dateSummaryMap[dateKey];
+          if (!summary) {
+            return (
+              <div
+                key={dateKey}
+                className="h-20 rounded-2xl border border-dashed border-slate-200 bg-white/60 p-2 text-slate-300"
+              >
+                {day}
+              </div>
+            );
+          }
+          return (
+            <button
+              key={dateKey}
+              type="button"
+              onClick={() => setSelectedDailyDate(dateKey)}
+              className={`h-20 rounded-2xl border p-2 text-left ${
+                selectedDailyDate === dateKey
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-200 bg-white"
+              }`}
+            >
+              <div className="text-sm font-semibold">{day}</div>
+              <div className="mt-2 text-xs">{money(summary.totalProfit)}</div>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  )}
+</CardContent>
               </Card>
 
               <Card className="rounded-3xl border-0 shadow-sm">
@@ -1167,6 +1346,21 @@ const deleteSelected = async () => {
                   <SummaryRow label="材料总毛利" value={money(dailySummary.materialProfit)} clickable active={detailPanel === "material"} onClick={() => setDetailPanel("material")} />
                   <SummaryRow label="产物出售利润" value={money(dailySummary.productProfit)} clickable active={detailPanel === "product"} onClick={() => setDetailPanel("product")} />
                   <SummaryRow label="开炉费收入" value={money(dailySummary.furnaceIncome)} clickable active={detailPanel === "furnace"} onClick={() => setDetailPanel("furnace")} />
+                 <div className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+  <div className="min-w-[80px] text-slate-700">其他</div>
+  <input
+    type="number"
+    value={dailyExtras[selectedDailyDate] ?? ""}
+    onChange={(e) =>
+      setDailyExtras((prev) => ({
+        ...prev,
+        [selectedDailyDate]: e.target.value,
+      }))
+    }
+    placeholder="天天开心^.^"
+    className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+  />
+</div>
                   <SummaryRow label="总收益" value={money(dailySummary.totalProfit)} strong />
 
                   <div className="rounded-2xl border bg-slate-50 p-4">
@@ -1193,24 +1387,6 @@ const deleteSelected = async () => {
   );
 }
 
-function showToast(message: string, type: "success" | "error" = "success") {
-  if (toastTimerRef.current) {
-    clearTimeout(toastTimerRef.current);
-  }
-
-  setToast({
-    show: true,
-    message,
-    type,
-  });
-
-  toastTimerRef.current = setTimeout(() => {
-    setToast((prev) => ({
-      ...prev,
-      show: false,
-    }));
-  }, 2200);
-}
 
 
 

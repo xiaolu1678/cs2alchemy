@@ -5,7 +5,8 @@ export async function fetchMaterials(userId: string) {
     .from("materials")
     .select("*")
     .eq("user_id", userId)
-    .order("date", { ascending: false });
+    .order("date", { ascending: false })
+    .order("id", { ascending: false });
 }
 
 export async function insertMaterial(payload: any) {
