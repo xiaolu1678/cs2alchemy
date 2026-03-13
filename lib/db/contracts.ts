@@ -5,9 +5,9 @@ export async function fetchContracts(userId: string) {
     .from("contracts")
     .select("*")
     .eq("user_id", userId)
-    .order("date", { ascending: false });
+    .order("date", { ascending: false })
+    .order("id", { ascending: false });
 }
-
 export async function insertContract(payload: any) {
   return supabase.from("contracts").insert([payload]);
 }

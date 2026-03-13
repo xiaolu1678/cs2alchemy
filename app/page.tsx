@@ -1,5 +1,6 @@
 // @ts-nocheck
 "use client";
+
 import { updateContractById } from "@/lib/db/contracts";
 import { updateMaterialById } from "@/lib/db/materials";
 import {
@@ -160,7 +161,7 @@ setCurrentUser(user);
 await loadMaterials(user.id);
 await loadContracts(user.id);
 await loadDailyExtraIncome(user.id);
-await loadMyInvite(user.id);
+
 setAuthChecked(true);
   }
 
@@ -196,9 +197,9 @@ async function loadContracts(userId: string) {
 }
 
 
-
+const [showAllContracts, setShowAllContracts] = useState(false);
   const [showAllMaterials, setShowAllMaterials] = useState(false);
-
+const [inventoryEdits, setInventoryEdits] = useState<Record<string, any>>({});
   const [materials, setMaterials] = useState<any[]>([]);
   const [contracts, setContracts] = useState<any[]>([]);
   const [authChecked, setAuthChecked] = React.useState(false);
@@ -234,13 +235,13 @@ const [visibleStatMap, setVisibleStatMap] = useState({
     salePrice: "",
   });
   const [batchPrices, setBatchPrices] = useState([""]);
-  const [inventoryFilters, setInventoryFilters] = useState({
-    date: "",
-    platform: "全部",
-    name: "",
-    wearLevel: "全部",
-    wearRange: "全部",
-  });
+const [inventoryFilters, setInventoryFilters] = useState({
+  date: "",
+  platform: "全部",
+  name: "",
+  wearLevel: "全部",
+  status: "全部",
+});
   const [contractForm, setContractForm] = useState({
     date: new Date().toISOString().slice(0, 10),
     contractName: "",
@@ -253,14 +254,15 @@ const [visibleStatMap, setVisibleStatMap] = useState({
     furnaceRatePercent: "10",
     salePrice: "",
   });
-  const [packageFilters, setPackageFilters] = useState({
-    name: "",
-    wearLevel: "全部",
-    wearRange: "全部",
-    platform: "全部",
-  });
+
+const [packageFilters, setPackageFilters] = useState({
+  date: "",
+  name: "",
+  platform: "全部",
+});
+
   const [packageForm, setPackageForm] = useState({
-    date: "2026-03-10",
+ date: new Date().toISOString().slice(0, 10),
     contractName: "",
     outputName: "",
     outputWearLevel: "久经沙场",
@@ -277,6 +279,7 @@ const [visibleStatMap, setVisibleStatMap] = useState({
     const q = materialForm.name.toLowerCase();
     return names.filter((name) => name.toLowerCase().includes(q)).slice(0, 6);
   }, [materials, materialForm.name]);
+
 
   const contractNameSuggestions = useMemo(() => {
     const names = [...new Set(contracts.map((item) => item.contractName).filter(Boolean))];
@@ -305,7 +308,9 @@ const [visibleStatMap, setVisibleStatMap] = useState({
     const q = packageForm.outputName.toLowerCase();
     return names.filter((name) => name.toLowerCase().includes(q)).slice(0, 6);
   }, [contracts, materials, packageForm.outputName]);
-
+const visibleContracts = useMemo(() => {
+  return showAllContracts ? contracts : contracts.slice(0, 10);
+}, [contracts, showAllContracts]);
   const filteredMaterials = useMemo(() => {
     return materials.filter((item) => {
       const text = `${item.platform} ${item.name} ${item.date} ${item.status} ${item.wearLevel}`.toLowerCase();
@@ -399,21 +404,41 @@ const contractRows = contracts.map((item) => {
     isContract: true,
   };
 });
-    return [...materialRows, ...contractRows];
+  return [...materialRows, ...contractRows].sort((a, b) => {
+  if (a.date !== b.date) {
+    return b.date.localeCompare(a.date);
+  }
+  return Number(b.rawId || 0) - Number(a.rawId || 0);
+});
   }, [materials, contracts]);
 
   const inventoryWearRangeOptions = useMemo(() => ["全部", ...new Set(inventoryRows.map((item) => item.wearRange).filter(Boolean))], [inventoryRows]);
 
-  const filteredInventory = useMemo(() => {
-    return inventoryRows.filter((item) => {
-      const matchDate = !inventoryFilters.date || item.date === inventoryFilters.date;
-      const matchPlatform = inventoryFilters.platform === "全部" || item.platform === inventoryFilters.platform;
-      const matchName = !inventoryFilters.name || item.name.toLowerCase().includes(inventoryFilters.name.toLowerCase());
-      const matchWearLevel = inventoryFilters.wearLevel === "全部" || item.wearLevel === inventoryFilters.wearLevel;
-      const matchWearRange = inventoryFilters.wearRange === "全部" || item.wearRange === inventoryFilters.wearRange;
-      return matchDate && matchPlatform && matchName && matchWearLevel && matchWearRange;
-    });
-  }, [inventoryRows, inventoryFilters]);
+const filteredInventory = useMemo(() => {
+  return inventoryRows.filter((item) => {
+    const matchDate = !inventoryFilters.date || item.date === inventoryFilters.date;
+    const matchPlatform =
+      inventoryFilters.platform === "全部" ||
+      item.platform === inventoryFilters.platform;
+    const matchName =
+      !inventoryFilters.name ||
+      item.name.toLowerCase().includes(inventoryFilters.name.toLowerCase());
+    const matchWearLevel =
+      inventoryFilters.wearLevel === "全部" ||
+      item.wearLevel === inventoryFilters.wearLevel;
+    const matchStatus =
+      inventoryFilters.status === "全部" ||
+      item.status === inventoryFilters.status;
+
+    return (
+      matchDate &&
+      matchPlatform &&
+      matchName &&
+      matchWearLevel &&
+      matchStatus
+    );
+  });
+}, [inventoryRows, inventoryFilters]);
 
 const stats = useMemo(() => {
   const totalExtraIncome = Object.values(dailyExtraMap).reduce(
@@ -463,16 +488,18 @@ const dailySummary = useMemo(
   [selectedDailyDate, materials, contracts, dailyExtraMap]
 );
   const inventoryOnlyMaterials = useMemo(() => materials.filter((item) => item.status === "库存中"), [materials]);
-  const filteredPackageMaterials = useMemo(() => {
-    return inventoryOnlyMaterials.filter((item) => {
-      const matchName = !packageFilters.name || item.name.toLowerCase().includes(packageFilters.name.toLowerCase());
-      const matchPlatform = packageFilters.platform === "全部" || item.platform === packageFilters.platform;
-      const matchWearLevel = packageFilters.wearLevel === "全部" || item.wearLevel === packageFilters.wearLevel;
-      const itemRange = item.wearRange === "自定义" ? item.customWear || "自定义" : item.wearRange;
-      const matchWearRange = packageFilters.wearRange === "全部" || itemRange === packageFilters.wearRange;
-      return matchName && matchPlatform && matchWearLevel && matchWearRange;
-    });
-  }, [inventoryOnlyMaterials, packageFilters]);
+const filteredPackageMaterials = useMemo(() => {
+  return inventoryOnlyMaterials.filter((item) => {
+    const matchDate = !packageFilters.date || item.date === packageFilters.date;
+    const matchName =
+      !packageFilters.name ||
+      item.name.toLowerCase().includes(packageFilters.name.toLowerCase());
+    const matchPlatform =
+      packageFilters.platform === "全部" || item.platform === packageFilters.platform;
+
+    return matchDate && matchName && matchPlatform;
+  });
+}, [inventoryOnlyMaterials, packageFilters]);
   const packageCost = useMemo(() => materials.filter((item) => packageForm.selectedIds.includes(item.id)).reduce((sum, item) => sum + Number(item.cost || 0), 0), [materials, packageForm.selectedIds]);
 
   const selectedRows = useMemo(() => filteredInventory.filter((item) => selectedIds.includes(item.id)), [filteredInventory, selectedIds]);
@@ -608,7 +635,7 @@ const addBatchMaterials = async () => {
 
   setBatchPrices([""]);
   setMaterialForm({
-    date: new Date().toISOString().slice(0, 10),
+    date: prev.date,
     platform: "BUFF",
     name: "",
     wearLevel: "久经沙场",
@@ -701,41 +728,209 @@ const addContract = async () => {
     const validCount = packageForm.selectedIds.length === 5 || packageForm.selectedIds.length === 10;
     if (!validCount || !packageForm.outputName) return;
     const salePrice = packageForm.salePrice ? Number(packageForm.salePrice) : "";
-    setMaterials((prev) => prev.map((item) => packageForm.selectedIds.includes(item.id) ? { ...item, status: "已售出", salePrice: Number(item.cost || 0) } : item));
+setMaterials((prev) =>
+  prev.map((item) =>
+    packageForm.selectedIds.includes(item.id)
+      ? {
+          ...item,
+          status: "已售出",
+          salePrice: Number(item.cost || 0),
+          sale_price: Number(item.cost || 0),
+          saleDate: new Date().toISOString().slice(0, 10),
+          sale_date: new Date().toISOString().slice(0, 10),
+        }
+      : item
+  )
+);
     setContracts((prev) => [{ id: Date.now(), date: packageForm.date, contractName: packageForm.contractName || "包炉记录", outputName: packageForm.outputName, outputWearLevel: packageForm.outputWearLevel, outputWearRange: packageForm.outputWearRange, outputCustomWear: packageForm.outputCustomWear, refPrice: Number(packageCost.toFixed(2)), result: packageForm.result, furnaceRate: 0, furnaceFee: 0, salePrice, status: salePrice ? "已售出" : "库存中", type: "包炉" }, ...prev]);
     setPackageForm((prev) => ({ ...prev, contractName: "", outputName: "", outputWearLevel: "久经沙场", outputWearRange: "0.15 - 0.18", outputCustomWear: "", result: "成功", salePrice: "", selectedIds: [] }));
   };
 
-  const updateInventoryField = (row, field, value) => {
-    if (row.itemType === "material") {
-      setMaterials((prev) => prev.map((item) => {
-        if (item.id !== row.rawId) return item;
-        if (field === "wearLevel") {
-          return { ...item, wearLevel: value, wearRange: wearRanges[value][0], customWear: "" };
-        }
-        if (field === "wearRange") {
-          return { ...item, wearRange: value, customWear: value === "自定义" ? item.customWear : "" };
-        }
-        if (field === "cost" || field === "salePrice") {
-          const nextValue = value === "" ? "" : Number(value);
-          const nextStatus = field === "salePrice" ? (value === "" ? "库存中" : "已售出") : item.status;
-          return { ...item, [field]: nextValue, status: nextStatus };
-        }
-        return { ...item, [field]: value };
-      }));
+function updateInventoryField(item: any, field: string, value: any) {
+  const rowKey = item.id;
+  const rawId = item.rawId ?? item.id;
+
+  const patch: any = {
+    [field]: value,
+  };
+
+  if (field === "salePrice") {
+    const hasSalePrice =
+      value !== "" && value !== null && value !== undefined && !Number.isNaN(Number(value));
+
+    if (hasSalePrice) {
+      patch.salePrice = value;
+      patch.sale_price = Number(value);
+      patch.status = "已售出";
+
+      const currentSaleDate = item.saleDate ?? item.sale_date;
+      const currentEditedSaleDate = inventoryEdits[rowKey]?.saleDate;
+
+      if (!currentSaleDate && !currentEditedSaleDate) {
+        patch.saleDate = new Date().toISOString().slice(0, 10);
+        patch.sale_date = patch.saleDate;
+      }
+    } else {
+      patch.salePrice = "";
+      patch.sale_price = null;
+      patch.status = "库存中";
+      patch.saleDate = "";
+      patch.sale_date = null;
+    }
+  }
+
+  if (field === "saleDate") {
+    patch.saleDate = value;
+    patch.sale_date = value || null;
+  }
+
+  if (field === "wearLevel") {
+    patch.wearLevel = value;
+    patch.wear_level = value;
+  }
+
+  if (field === "wearRange") {
+    patch.wearRange = value;
+    patch.wear_range = value;
+  }
+
+  if (field === "customWear") {
+    patch.customWear = value;
+    patch.custom_wear = value;
+  }
+
+  const applyPatch = (row: any) => {
+    if (row.id !== rawId) return row;
+
+    const next = { ...row, ...patch };
+
+    const salePrice = next.salePrice ?? next.sale_price;
+    const cost = next.cost ?? 0;
+
+    next.profit =
+      salePrice === "" || salePrice === null || salePrice === undefined
+        ? ""
+        : Number(salePrice) - Number(cost || 0);
+
+    return next;
+  };
+
+  if (item.isContract) {
+    setContracts((prev: any[]) => prev.map(applyPatch));
+  } else {
+    setMaterials((prev: any[]) => prev.map(applyPatch));
+  }
+
+  setInventoryEdits((prev) => ({
+    ...prev,
+    [rowKey]: {
+      ...(prev[rowKey] || {}),
+      rawId,
+      isContract: item.isContract,
+      ...patch,
+    },
+  }));
+}
+
+
+async function saveInventoryEdits() {
+  console.log("saveInventoryEdits 开始执行");
+
+  try {
+    const entries = Object.entries(inventoryEdits || {});
+    console.log("本次只保存改动行数:", entries.length);
+
+    if (!entries.length) {
+      showToast("没有需要保存的改动");
+      setEditMode(false);
+      setSelectedIds([]);
       return;
     }
 
-    setContracts((prev) => prev.map((item) => {
-      if (item.id !== row.rawId) return item;
-      if (field === "name") return { ...item, outputName: value };
-      if (field === "wearLevel") return { ...item, outputWearLevel: value, outputWearRange: wearRanges[value][0], outputCustomWear: "" };
-      if (field === "wearRange") return { ...item, outputWearRange: value, outputCustomWear: value === "自定义" ? item.outputCustomWear : "" };
-      if (field === "cost") return { ...item, refPrice: value === "" ? 0 : Number(value) };
-      if (field === "salePrice") return { ...item, salePrice: value === "" ? "" : Number(value), status: value === "" ? "库存中" : "已售出" };
-      return item;
-    }));
-  };
+    for (const [rowKey, patch] of entries) {
+      const rawId = patch.rawId;
+      const isContract = patch.isContract;
+
+      const salePrice =
+        patch.salePrice === "" || patch.salePrice === null || patch.salePrice === undefined
+          ? null
+          : Number(patch.salePrice);
+
+      const saleDate =
+        patch.saleDate === "" || patch.saleDate === null || patch.saleDate === undefined
+          ? null
+          : patch.saleDate;
+
+      const status =
+        patch.status ?? (salePrice === null ? "库存中" : "已售出");
+
+      if (isContract) {
+        const { error } = await updateContractById(rawId, {
+          ...(patch.name !== undefined ? { output_name: patch.name } : {}),
+          ...(patch.wearLevel !== undefined ? { output_wear_level: patch.wearLevel } : {}),
+          ...(patch.wearRange !== undefined ? { output_wear_range: patch.wearRange } : {}),
+          ...(patch.salePrice !== undefined ? { sale_price: salePrice } : {}),
+          ...(patch.status !== undefined || patch.salePrice !== undefined ? { status } : {}),
+          ...(patch.saleDate !== undefined || patch.salePrice !== undefined ? { sale_date: saleDate } : {}),
+        });
+
+        if (error) {
+          console.error("更新汰换产物失败", error, rowKey, patch);
+          showToast(`更新汰换产物失败：${error.message}`, "error");
+          return;
+        }
+      } else {
+        const { error } = await updateMaterialById(rawId, {
+          ...(patch.platform !== undefined ? { platform: patch.platform } : {}),
+          ...(patch.name !== undefined ? { name: patch.name } : {}),
+          ...(patch.wearLevel !== undefined ? { wear_level: patch.wearLevel } : {}),
+          ...(patch.wearRange !== undefined ? { wear_range: patch.wearRange } : {}),
+          ...(patch.salePrice !== undefined ? { sale_price: salePrice } : {}),
+          ...(patch.status !== undefined || patch.salePrice !== undefined ? { status } : {}),
+          ...(patch.saleDate !== undefined || patch.salePrice !== undefined ? { sale_date: saleDate } : {}),
+        });
+
+        if (error) {
+          console.error("更新材料失败", error, rowKey, patch);
+          showToast(`更新材料失败：${error.message}`, "error");
+          return;
+        }
+      }
+    }
+
+    if (currentUser?.id) {
+      const { data: materialData, error: materialReloadError } =
+        await fetchMaterials(currentUser.id);
+
+      if (materialReloadError) {
+        console.error("刷新材料失败", materialReloadError);
+        showToast(`刷新材料失败：${materialReloadError.message}`, "error");
+        return;
+      }
+
+      const { data: contractData, error: contractReloadError } =
+        await fetchContracts(currentUser.id);
+
+      if (contractReloadError) {
+        console.error("刷新汰换记录失败", contractReloadError);
+        showToast(`刷新汰换记录失败：${contractReloadError.message}`, "error");
+        return;
+      }
+
+      setMaterials(materialData || []);
+      setContracts(contractData || []);
+    }
+
+    setInventoryEdits({});
+    setEditMode(false);
+    setSelectedIds([]);
+    showToast("库存编辑已保存");
+    console.log("saveInventoryEdits 执行完成");
+  } catch (err) {
+    console.error("saveInventoryEdits 崩了", err);
+    showToast("保存库存编辑时发生异常", "error");
+  }
+}
 
   const toggleStatsVisibility = (key) => setVisibleStatMap((prev) => ({ ...prev, [key]: !prev[key] }));
 
@@ -833,7 +1028,7 @@ const deleteSelected = async () => {
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex flex-col gap-3 rounded-3xl bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
   <div>
-    <h1 className="text-3xl font-bold tracking-tight text-slate-900">XiaoLu记账v2.1</h1>
+    <h1 className="text-3xl font-bold tracking-tight text-slate-900">CS2炼金记账v2.2</h1>
     <div className="mt-2 text-sm text-slate-500">
       当前用户：{currentUser?.email ? currentUser.email.split("@")[0] : "未登录"}
     </div>
@@ -1029,149 +1224,375 @@ const deleteSelected = async () => {
               </Card>
             </div>
           </TabsContent>
+                    
+
                     <TabsContent value="inventory">
-            <Card className="rounded-3xl border-0 shadow-sm">
-              <CardHeader>
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <CardTitle>库存管理</CardTitle>
-                  <div className="flex flex-wrap gap-2">
-                    {!editMode && (
-  <Button
-    type="button"
-    variant="outline"
-    className="rounded-2xl"
-    onClick={() => {
-      setEditMode(true);
-      setSelectedIds([]);
-    }}
-  >
-    <Pencil className="mr-2 h-4 w-4" />
-    编辑总开关
-  </Button>
-)}
-                    {editMode && (
-                      <>
-                      
-                        <Button type="button" variant="outline" className="rounded-2xl" onClick={selectAllVisible}>全选</Button>
-                        <Button type="button" variant="outline" className="rounded-2xl" onClick={clearSelected}>全不选</Button>
-                        <Button type="button" variant="destructive" className="rounded-2xl" onClick={deleteSelected}>
-                          <Trash2 className="mr-2 h-4 w-4" />删除
-                        </Button>
-                        <Button
+  <Card className="rounded-3xl border-0 shadow-sm">
+    <CardHeader>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <CardTitle>库存管理</CardTitle>
+        <div className="flex flex-wrap gap-2">
+          {!editMode && (
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-2xl"
+              onClick={() => {
+                setEditMode(true);
+setSelectedIds([]);
+setInventoryEdits({});
+              }}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              编辑总开关
+            </Button>
+          )}
+
+          {editMode && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-2xl"
+                onClick={selectAllVisible}
+              >
+                全选
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-2xl"
+                onClick={clearSelected}
+              >
+                全不选
+              </Button>
+
+              <Button
+                type="button"
+                variant="destructive"
+                className="rounded-2xl"
+                onClick={deleteSelected}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                删除
+              </Button>
+
+              <Button
   type="button"
   variant="default"
   className="rounded-2xl"
-  onClick={() => {
-    setEditMode(false);
-    setSelectedIds([]);
+  onClick={async () => {
+    console.log("✅ 完成编辑按钮被点击了");
+    await saveInventoryEdits();
   }}
 >
   ✅完成编辑
 </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                  <FieldDate label="日期筛选" value={inventoryFilters.date} onChange={(value) => setInventoryFilters({ ...inventoryFilters, date: value })} lang="en-CA" />
-                  <SelectField label="平台筛选" value={inventoryFilters.platform} options={["全部", ...inventoryPlatformOptions]} onChange={(value) => setInventoryFilters({ ...inventoryFilters, platform: value })} />
-                  <TextField label="名称筛选" placeholder="输入名称关键词" value={inventoryFilters.name} onChange={(value) => setInventoryFilters({ ...inventoryFilters, name: value })} />
-                  <SelectField label="磨损等级筛选" value={inventoryFilters.wearLevel} options={["全部", ...wearLevelOptions]} onChange={(value) => setInventoryFilters({ ...inventoryFilters, wearLevel: value })} />
-                  <SelectField label="磨损区间筛选" value={inventoryFilters.wearRange} options={inventoryWearRangeOptions} onChange={(value) => setInventoryFilters({ ...inventoryFilters, wearRange: value })} />
-                </div>
+            </>
+          )}
+        </div>
+      </div>
+    </CardHeader>
 
-                {editMode && (
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    已选 {selectedRows.length} 项 ｜ 求和 {money(selectedSum)} ｜ 平均 {money(selectedAvg)}
-                  </div>
+    <CardContent className="space-y-4">
+     <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-5">
+  <div className="space-y-1">
+    <Label className="text-xs text-slate-500">日期筛选</Label>
+    <Input
+      type="date"
+      value={inventoryFilters.date}
+      onChange={(e) =>
+        setInventoryFilters({ ...inventoryFilters, date: e.target.value })
+      }
+      className="h-9 rounded-xl"
+    />
+  </div>
+
+  <div className="space-y-1">
+    <Label className="text-xs text-slate-500">平台筛选</Label>
+    <Select
+      value={inventoryFilters.platform}
+      onValueChange={(value) =>
+        setInventoryFilters({ ...inventoryFilters, platform: value })
+      }
+    >
+      <SelectTrigger className="h-9 rounded-xl">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {["全部", ...inventoryPlatformOptions].map((option) => (
+          <SelectItem key={option} value={option}>
+            {option}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </div>
+
+  <div className="space-y-1">
+    <Label className="text-xs text-slate-500">名称筛选</Label>
+    <Input
+      placeholder="输入名称关键词"
+      value={inventoryFilters.name}
+      onChange={(e) =>
+        setInventoryFilters({ ...inventoryFilters, name: e.target.value })
+      }
+      className="h-9 rounded-xl"
+    />
+  </div>
+
+  <div className="space-y-1">
+    <Label className="text-xs text-slate-500">磨损等级筛选</Label>
+    <Select
+      value={inventoryFilters.wearLevel}
+      onValueChange={(value) =>
+        setInventoryFilters({ ...inventoryFilters, wearLevel: value })
+      }
+    >
+      <SelectTrigger className="h-9 rounded-xl">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {["全部", ...wearLevelOptions].map((option) => (
+          <SelectItem key={option} value={option}>
+            {option}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </div>
+
+  <div className="space-y-1">
+    <Label className="text-xs text-slate-500">库存状态筛选</Label>
+    <Select
+      value={inventoryFilters.status}
+      onValueChange={(value) =>
+        setInventoryFilters({ ...inventoryFilters, status: value })
+      }
+    >
+      <SelectTrigger className="h-9 rounded-xl">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {["全部", "库存中", "已售出"].map((option) => (
+          <SelectItem key={option} value={option}>
+            {option}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </div>
+</div>
+
+      {editMode && (
+        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          已选 {selectedRows.length} 项 ｜ 求和 {money(selectedSum)} ｜ 平均{" "}
+          {money(selectedAvg)}
+        </div>
+      )}
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {editMode && <TableHead className="w-12">选择</TableHead>}
+            <TableHead>日期</TableHead>
+            <TableHead>平台</TableHead>
+            <TableHead>名称</TableHead>
+            <TableHead>磨损等级</TableHead>
+            <TableHead>磨损区间</TableHead>
+            <TableHead>参考价/成本</TableHead>
+            <TableHead>售价</TableHead>
+            <TableHead>库存状态</TableHead>
+            <TableHead>出售日期</TableHead>
+            <TableHead>利润</TableHead>
+          </TableRow>
+        </TableHeader>
+
+        <TableBody>
+          {filteredInventory.map((item) => (
+            <TableRow key={item.id}>
+              {editMode && (
+                <TableCell>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(item.id)}
+                    onChange={(e) =>
+                      toggleSelectRow(item.id, e.target.checked)
+                    }
+                  />
+                </TableCell>
+              )}
+
+              <TableCell>
+                {formatInventoryDate(item.date, Boolean(inventoryFilters.date))}
+              </TableCell>
+
+              <TableCell>
+                {editMode && !item.isContract ? (
+                  <Select
+                    value={item.platform}
+                    onValueChange={(value) =>
+                      updateInventoryField(item, "platform", value)
+                    }
+                  >
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {platformOptions.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {p}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  item.platform
                 )}
+              </TableCell>
 
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      {editMode && <TableHead className="w-12">选择</TableHead>}
-                      <TableHead>日期</TableHead>
-                      <TableHead>平台</TableHead>
-                      <TableHead>名称</TableHead>
-                      <TableHead>磨损等级</TableHead>
-                      <TableHead>磨损区间</TableHead>
-                      <TableHead>参考价/成本</TableHead>
-                      <TableHead>售价</TableHead>
-                      <TableHead>库存状态</TableHead>
-                      <TableHead>出售日期</TableHead>
-                      <TableHead>利润</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredInventory.map((item) => (
-                      <TableRow key={item.id}>
-                        {editMode && (
-                          <TableCell>
-                            <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={(e) => toggleSelectRow(item.id, e.target.checked)} />
-                          </TableCell>
-                        )}
-                        <TableCell>{formatInventoryDate(item.date, Boolean(inventoryFilters.date))}</TableCell>
-                        <TableCell>
-                          {editMode && !item.isContract ? (
-                            <Select value={item.platform} onValueChange={(value) => updateInventoryField(item, "platform", value)}>
-                              <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {platformOptions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          ) : item.platform}
-                        </TableCell>
-                        <TableCell>
-                          {editMode ? <Input value={item.name} onChange={(e) => updateInventoryField(item, "name", e.target.value)} /> : item.name}
-                        </TableCell>
-                        <TableCell>
-                          {editMode ? (
-                            <Select value={item.wearLevel} onValueChange={(value) => updateInventoryField(item, "wearLevel", value)}>
-                              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {wearLevelOptions.map((level) => <SelectItem key={level} value={level}>{level}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          ) : item.wearLevel}
-                        </TableCell>
-                        <TableCell>
-                          {editMode ? (
-                            <Select value={item.wearRange} onValueChange={(value) => updateInventoryField(item, "wearRange", value)}>
-                              <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {(wearRanges[item.wearLevel] || [item.wearRange]).map((range) => <SelectItem key={range} value={range}>{range}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          ) : item.wearRange}
-                        </TableCell>
-                        <TableCell>
-                          {editMode ? <Input type="number" value={item.cost} onChange={(e) => updateInventoryField(item, "cost", e.target.value)} /> : money(item.cost)}
-                        </TableCell>
-                        <TableCell>
-                          {editMode ? <Input type="number" value={item.salePrice === "" ? "" : item.salePrice} onChange={(e) => updateInventoryField(item, "salePrice", e.target.value)} /> : item.salePrice === "" ? "-" : money(item.salePrice)}
-                        </TableCell>
-                        <TableCell><Badge className={item.status === "库存中" ? "rounded-full bg-amber-100 text-amber-800 hover:bg-amber-100" : "rounded-full bg-slate-900 text-white hover:bg-slate-900"}>{item.status}</Badge></TableCell>
-                        <TableCell>{item.saleDate || "-"}</TableCell>
-                        <TableCell>{item.profit === "" ? "-" : money(item.profit)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              <TableCell>
+                {editMode ? (
+                  <Input
+                    value={item.name}
+                    onChange={(e) =>
+                      updateInventoryField(item, "name", e.target.value)
+                    }
+                  />
+                ) : (
+                  item.name
+                )}
+              </TableCell>
+
+              <TableCell>
+                {editMode ? (
+                  <Select
+                    value={item.wearLevel}
+                    onValueChange={(value) =>
+                      updateInventoryField(item, "wearLevel", value)
+                    }
+                  >
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {wearLevelOptions.map((level) => (
+                        <SelectItem key={level} value={level}>
+                          {level}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  item.wearLevel
+                )}
+              </TableCell>
+
+              <TableCell>
+                {editMode ? (
+                  <Select
+                    value={item.wearRange}
+                    onValueChange={(value) =>
+                      updateInventoryField(item, "wearRange", value)
+                    }
+                  >
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(wearRanges[item.wearLevel] || [item.wearRange]).map(
+                        (range) => (
+                          <SelectItem key={range} value={range}>
+                            {range}
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  item.wearRange
+                )}
+              </TableCell>
+
+              <TableCell>{money(item.cost)}</TableCell>
+
+              <TableCell>
+                {editMode ? (
+                  <Input
+                    type="number"
+                    value={item.salePrice ?? item.sale_price ?? ""}
+                    onChange={(e) =>
+                      updateInventoryField(item, "salePrice", e.target.value)
+                    }
+                  />
+                ) : item.salePrice === "" ||
+                  item.salePrice === null ||
+                  item.salePrice === undefined ? (
+                  "-"
+                ) : (
+                  money(item.salePrice)
+                )}
+              </TableCell>
+
+              <TableCell>
+  <Badge
+    className={
+      item.status === "库存中"
+        ? "rounded-full bg-amber-100 text-amber-800 hover:bg-amber-100"
+        : "rounded-full bg-slate-900 text-white hover:bg-slate-900"
+    }
+  >
+    {item.status}
+  </Badge>
+</TableCell>
+
+              <TableCell>
+                {editMode ? (
+                  <Input
+                    type="date"
+                    value={item.saleDate ?? item.sale_date ?? ""}
+                    onChange={(e) =>
+                      updateInventoryField(item, "saleDate", e.target.value)
+                    }
+                  />
+                ) : (
+                  item.saleDate ?? item.sale_date ?? "-"
+                )}
+              </TableCell>
+
+              <TableCell>
+                {item.profit === "" || item.profit === null || item.profit === undefined
+                  ? "-"
+                  : money(item.profit)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </CardContent>
+  </Card>
+</TabsContent>
 
           <TabsContent value="exchange" className="space-y-6">
             <div className="grid gap-6 xl:grid-cols-[420px,1fr]">
               <Card className="rounded-3xl border-0 shadow-sm">
-                <CardHeader>
-                  <CardTitle>汰换记录</CardTitle>
-                </CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
+  <CardTitle>汰换记录</CardTitle>
+
+  {contracts.length > 10 && (
+    <button
+      type="button"
+      onClick={() => setShowAllContracts((prev) => !prev)}
+      className="rounded-xl border px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+    >
+      {showAllContracts ? "收起 ↑" : "查看全部 ↓"}
+    </button>
+  )}
+</CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
-                    <Button type="button" variant={exchangeMode === "普通汰换" ? "default" : "ghost"} className="rounded-xl" onClick={() => setExchangeMode("普通汰换")}>普通汰换</Button>
+                    <Button type="button" variant={exchangeMode === "普通汰换" ? "default" : "ghost"} className="rounded-xl" onClick={() => setExchangeMode("普通汰换")}>ECO合炉</Button>
                     <Button type="button" variant={exchangeMode === "包炉" ? "default" : "ghost"} className="rounded-xl" onClick={() => setExchangeMode("包炉")}>包炉</Button>
                   </div>
                   {exchangeMode === "普通汰换" ? (
@@ -1229,12 +1650,52 @@ const deleteSelected = async () => {
                       {packageForm.outputWearRange === "自定义" && <TextField label="自定义产物磨损 / 区间" placeholder="例如：0.163 或 0.15 - 0.17" value={packageForm.outputCustomWear} onChange={(value) => setPackageForm({ ...packageForm, outputCustomWear: value })} />}
                       <div className="space-y-3 rounded-2xl border p-4">
                         <div className="text-sm font-medium text-slate-700">包炉选材</div>
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <TextField label="名称筛选" placeholder="输入名称关键词" value={packageFilters.name} onChange={(value) => setPackageFilters({ ...packageFilters, name: value })} />
-                          <SelectField label="平台筛选" value={packageFilters.platform} options={["全部", ...platformOptions]} onChange={(value) => setPackageFilters({ ...packageFilters, platform: value })} />
-                          <SelectField label="磨损等级筛选" value={packageFilters.wearLevel} options={["全部", ...wearLevelOptions]} onChange={(value) => setPackageFilters({ ...packageFilters, wearLevel: value })} />
-                          <SelectField label="磨损区间筛选" value={packageFilters.wearRange} options={inventoryWearRangeOptions} onChange={(value) => setPackageFilters({ ...packageFilters, wearRange: value })} />
-                        </div>
+                        <div className="grid gap-2 md:grid-cols-3">
+  <div className="space-y-1">
+    <Label className="text-xs text-slate-500">日期筛选</Label>
+    <Input
+      type="date"
+      value={packageFilters.date}
+      onChange={(e) =>
+        setPackageFilters({ ...packageFilters, date: e.target.value })
+      }
+      className="h-9 rounded-xl"
+    />
+  </div>
+
+  <div className="space-y-1">
+    <Label className="text-xs text-slate-500">名称筛选</Label>
+    <Input
+      placeholder="输入名称关键词"
+      value={packageFilters.name}
+      onChange={(e) =>
+        setPackageFilters({ ...packageFilters, name: e.target.value })
+      }
+      className="h-9 rounded-xl"
+    />
+  </div>
+
+  <div className="space-y-1">
+    <Label className="text-xs text-slate-500">平台筛选</Label>
+    <Select
+      value={packageFilters.platform}
+      onValueChange={(value) =>
+        setPackageFilters({ ...packageFilters, platform: value })
+      }
+    >
+      <SelectTrigger className="h-9 rounded-xl">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {["全部", ...platformOptions].map((option) => (
+          <SelectItem key={option} value={option}>
+            {option}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </div>
+</div>
                         <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">已选 {packageForm.selectedIds.length} 个材料，只允许 5 个或 10 个。</div>
                         <div className="max-h-64 space-y-2 overflow-auto rounded-2xl border p-3">
                           {filteredPackageMaterials.map((item) => {
@@ -1243,7 +1704,9 @@ const deleteSelected = async () => {
                               <button key={item.id} type="button" className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left ${active ? "bg-slate-900 text-white" : "bg-white"}`} onClick={() => togglePackageMaterial(item.id)}>
                                 <div>
                                   <div className="font-medium">{item.name}</div>
-                                  <div className="text-xs opacity-70">{item.platform} · {item.wearLevel} · {item.wearRange === "自定义" ? item.customWear || "自定义" : item.wearRange}</div>
+                                  <div className="text-sm text-slate-500">
+  {[item.platform, item.wearLevel, item.wearRange].filter(Boolean).join(" • ")}
+</div>
                                 </div>
                                 <div>{money(item.cost)}</div>
                               </button>
@@ -1259,9 +1722,19 @@ const deleteSelected = async () => {
               </Card>
 
               <Card className="rounded-3xl border-0 shadow-sm">
-                <CardHeader>
-                  <CardTitle>汰换记录</CardTitle>
-                </CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
+  <CardTitle>汰换记录</CardTitle>
+
+  {contracts.length > 10 && (
+    <button
+      type="button"
+      onClick={() => setShowAllContracts((prev) => !prev)}
+      className="rounded-xl border px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+    >
+      {showAllContracts ? "收起 ↑" : "查看全部 ↓"}
+    </button>
+  )}
+</CardHeader>
                 <CardContent>
                   <Table>
                     <TableHeader>
@@ -1281,7 +1754,7 @@ const deleteSelected = async () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {contracts.map((item) => {
+                     {visibleContracts.map((item) => {
   const contractName = item.contractName ?? item.contract_name;
   const outputName = item.outputName ?? item.output_name;
   const outputWearLevel = item.outputWearLevel ?? item.output_wear_level;
@@ -1295,21 +1768,37 @@ const deleteSelected = async () => {
 
   return (
                           <TableRow key={item.id}>
-                            <TableCell>{item.date}</TableCell>
-                            <TableCell>{type}</TableCell>
-<TableCell>{contractName}</TableCell>
-<TableCell>{outputName}</TableCell>
-<TableCell>{money(refPrice)}</TableCell>
-<TableCell>{outputWearLevel}</TableCell>
-<TableCell>{outputWearRange === "自定义" ? outputCustomWear || "自定义" : outputWearRange}</TableCell>
-<TableCell>{money(furnaceFee)}</TableCell>
-<TableCell>{salePrice ? money(salePrice) : "-"}</TableCell>
-                            <TableCell><Badge className={item.result === "成功" ? "rounded-full bg-green-100 text-green-700 hover:bg-green-100" : "rounded-full bg-red-100 text-red-700 hover:bg-red-100"}>{item.result}</Badge></TableCell>
-                            <TableCell>{money(item.furnaceFee)}</TableCell>
-                            <TableCell>{item.salePrice ? money(item.salePrice) : "-"}</TableCell>
-                            <TableCell>{money(profit)}</TableCell>
-                            <TableCell><Badge variant="secondary" className="rounded-full">{item.status}</Badge></TableCell>
-                          </TableRow>
+  <TableCell>{item.date}</TableCell>
+  <TableCell>{type}</TableCell>
+  <TableCell>{contractName}</TableCell>
+  <TableCell>{outputName}</TableCell>
+  <TableCell>{money(refPrice)}</TableCell>
+  <TableCell>{outputWearLevel}</TableCell>
+  <TableCell>
+    {outputWearRange === "自定义"
+      ? outputCustomWear || "自定义"
+      : outputWearRange}
+  </TableCell>
+  <TableCell>
+    <Badge
+      className={
+        item.result === "成功"
+          ? "rounded-full bg-green-100 text-green-700 hover:bg-green-100"
+          : "rounded-full bg-red-100 text-red-700 hover:bg-red-100"
+      }
+    >
+      {item.result}
+    </Badge>
+  </TableCell>
+  <TableCell>{money(furnaceFee)}</TableCell>
+  <TableCell>{salePrice ? money(salePrice) : "-"}</TableCell>
+  <TableCell>{money(profit)}</TableCell>
+  <TableCell>
+    <Badge variant="secondary" className="rounded-full">
+      {item.status}
+    </Badge>
+  </TableCell>
+</TableRow>
                         );
                       })}
                     </TableBody>
@@ -1491,7 +1980,35 @@ const deleteSelected = async () => {
 }
 
 
+async function loadMyInvite(userId: string) {
+  const { data, error } = await fetchMyInviteCode(userId);
 
+  if (error) {
+    console.error("读取邀请码失败", error);
+    return;
+  }
+
+  setMyInvite(data || null);
+
+  if (!data?.expires_at) {
+    setInviteRemainText("无有效期");
+    return;
+  }
+
+  const now = Date.now();
+  const expires = new Date(data.expires_at).getTime();
+  const diff = expires - now;
+
+  if (diff <= 0) {
+    setInviteRemainText("已过期");
+    return;
+  }
+
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+
+  setInviteRemainText(`${days}天 ${hours}小时`);
+}
 
 function StatCard({ title, value, hidden, icon, onToggle }) {
   return (
