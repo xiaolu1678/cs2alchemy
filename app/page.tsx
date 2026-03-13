@@ -1,6 +1,11 @@
 // @ts-nocheck
 "use client";
-
+import { updateContractById } from "@/lib/db/contracts";
+import { updateMaterialById } from "@/lib/db/materials";
+import {
+  fetchDailyExtraIncome,
+  upsertDailyExtraIncome,
+} from "@/lib/db/daily-extra-income";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import {
@@ -63,46 +68,50 @@ function calendarMatrix(year, monthIndex) {
   return cells;
 }
 
-function getDailySummary(date, materials, contracts, dailyExtras = {}) {
-  const dayMaterials = materials.filter((item) => item.date === date);
-  const dayContracts = contracts.filter((item) => item.date === date);
-  const materialProfit = dayMaterials.reduce((sum, item) => {
-    if (!item.salePrice) return sum;
-    return sum + (Number(item.salePrice) - Number(item.cost || 0));
-  }, 0);
-  const productProfit = dayContracts.reduce((sum, item) => {
-    if (!item.salePrice) return sum;
-    return sum + (Number(item.salePrice) - Number(item.refPrice || 0));
-  }, 0);
-  const furnaceIncome = dayContracts.reduce((sum, item) => sum + Number(item.furnaceFee || 0), 0);
-  const materialDetails = dayMaterials.filter((item) => item.salePrice).map((item) => ({
-    id: `m-${item.id}`,
-    name: item.name,
-    value: Number(item.salePrice) - Number(item.cost || 0),
-    note: `${item.platform} · ${item.wearLevel}`,
-  }));
-  const productDetails = dayContracts.filter((item) => item.salePrice).map((item) => ({
-    id: `c-${item.id}`,
-    name: item.outputName,
-    value: Number(item.salePrice) - Number(item.refPrice || 0),
-    note: `${item.type || "普通汰换"} · ${item.result}`,
-  }));
-  const furnaceDetails = dayContracts.filter((item) => Number(item.furnaceFee || 0) > 0).map((item) => ({
-    id: `f-${item.id}`,
-    name: item.contractName,
-    value: Number(item.furnaceFee || 0),
-    note: `${item.outputName}`,
-  }));
-  const extraValue = Number(dailyExtras?.[date] || 0);
+function getDailySummary(
+  date: string,
+  materials: any[],
+  contracts: any[],
+  dailyExtraMap: Record<string, number> = {}
+) {
+  const materialProfit = materials
+    .filter((item) => {
+      const saleDate = item.saleDate ?? item.sale_date;
+      const salePrice = item.salePrice ?? item.sale_price;
+      return saleDate === date && salePrice !== null && salePrice !== undefined && salePrice !== "";
+    })
+    .reduce((sum, item) => {
+      const salePrice = item.salePrice ?? item.sale_price;
+      return sum + (Number(salePrice || 0) - Number(item.cost || 0));
+    }, 0);
+
+  const productProfit = contracts
+    .filter((item) => {
+      const saleDate = item.saleDate ?? item.sale_date;
+      const salePrice = item.salePrice ?? item.sale_price;
+      return saleDate === date && salePrice !== null && salePrice !== undefined && salePrice !== "";
+    })
+    .reduce((sum, item) => {
+      const salePrice = item.salePrice ?? item.sale_price;
+      const refPrice = item.refPrice ?? item.ref_price;
+      return sum + (Number(salePrice || 0) - Number(refPrice || 0));
+    }, 0);
+
+  const furnaceIncome = contracts
+    .filter((item) => item.date === date)
+    .reduce((sum, item) => {
+      const furnaceFee = item.furnaceFee ?? item.furnace_fee;
+      return sum + Number(furnaceFee || 0);
+    }, 0);
+
+  const extraValue = Number(dailyExtraMap?.[date] || 0);
+
   return {
     materialProfit,
     productProfit,
     furnaceIncome,
-totalProfit: materialProfit + productProfit + furnaceIncome + extraValue,
-extraValue,
-    materialDetails,
-    productDetails,
-    furnaceDetails,
+    extraValue,
+    totalProfit: materialProfit + productProfit + furnaceIncome + extraValue,
   };
 }
 
@@ -150,6 +159,8 @@ React.useEffect(() => {
 setCurrentUser(user);
 await loadMaterials(user.id);
 await loadContracts(user.id);
+await loadDailyExtraIncome(user.id);
+await loadMyInvite(user.id);
 setAuthChecked(true);
   }
 
@@ -199,15 +210,18 @@ async function loadContracts(userId: string) {
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedDailyDate, setSelectedDailyDate] = useState("2026-03-10");
   const [showCalendar, setShowCalendar] = useState(false);
-  const [dailyExtras, setDailyExtras] = useState<Record<string, string>>({});
+const [dailyExtraMap, setDailyExtraMap] = useState<Record<string, number>>({});
+const [editingExtraDate, setEditingExtraDate] = useState<string | null>(null);
+const [editingExtraValue, setEditingExtraValue] = useState("");
   const [detailPanel, setDetailPanel] = useState("material");
 const [visibleStatMap, setVisibleStatMap] = useState({
-  materialProfit: true,
-  productProfit: true,
-  furnaceIncome: true,
+  materialProfit: false,
+  productProfit: false,
+  furnaceIncome: false,
+  extraIncome: false,
+  totalProfit: false,
   stockCount: true,
-  stockCost: true,
-  totalProfit: true,
+  stockCost: false,
 });
   const [materialForm, setMaterialForm] = useState({
     date: new Date().toISOString().slice(0, 10),
@@ -302,6 +316,21 @@ const visibleMaterials = useMemo(() => {
   return showAllMaterials ? filteredMaterials : filteredMaterials.slice(0, 10);
 }, [filteredMaterials, showAllMaterials]);
 
+async function loadDailyExtraIncome(userId: string) {
+  const { data, error } = await fetchDailyExtraIncome(userId);
+
+  if (error) {
+    console.error("读取其他收益失败", error);
+    return;
+  }
+
+  const map: Record<string, number> = {};
+  (data || []).forEach((item: any) => {
+    map[item.date] = Number(item.amount || 0);
+  });
+
+  setDailyExtraMap(map);
+}
 
   const inventoryRows = useMemo(() => {
 const materialRows = materials.map((item) => {
@@ -316,6 +345,7 @@ const materialRows = materials.map((item) => {
     platform: item.platform,
     name: item.name,
     wearLevel: wearLevel || "-",
+    saleDate: item.saleDate ?? item.sale_date ?? "",
     wearRange:
       wearRange === "自定义"
         ? customWear || "自定义"
@@ -349,6 +379,7 @@ const contractRows = contracts.map((item) => {
     platform: "汰换",
     name: outputName,
     wearLevel: outputWearLevel || "-",
+    saleDate: item.saleDate ?? item.sale_date ?? "",
     wearRange:
       outputWearRange === "自定义"
         ? outputCustomWear || "自定义"
@@ -384,30 +415,52 @@ const contractRows = contracts.map((item) => {
     });
   }, [inventoryRows, inventoryFilters]);
 
-  const stats = useMemo(() => {
-    const materialProfit = materials.reduce((sum, item) => !item.salePrice ? sum : sum + (Number(item.salePrice) - Number(item.cost)), 0);
-    const productProfit = contracts.reduce((sum, item) => !item.salePrice ? sum : sum + (Number(item.salePrice) - Number(item.refPrice || 0)), 0);
-    const furnaceIncome = contracts.reduce((sum, item) => sum + Number(item.furnaceFee || 0), 0);
-    const inStock = inventoryRows.filter((item) => item.status === "库存中");
-    const stockCost = inStock.reduce((sum, item) => sum + Number(item.cost || 0), 0);
-    return {
-      materialProfit,
-      productProfit,
-      furnaceIncome,
-      stockCount: inStock.length,
-      stockCost,
-      totalProfit: materialProfit + productProfit + furnaceIncome,
-    };
-  }, [materials, contracts, inventoryRows]);
+const stats = useMemo(() => {
+  const totalExtraIncome = Object.values(dailyExtraMap).reduce(
+  (sum, value) => sum + Number(value || 0),
+  0
+);
+  const materialProfit = materials.reduce((sum, item) => {
+    const salePrice = item.salePrice ?? item.sale_price;
+    if (salePrice === null || salePrice === undefined || salePrice === "") return sum;
+    return sum + (Number(salePrice || 0) - Number(item.cost || 0));
+  }, 0);
+
+  const productProfit = contracts.reduce((sum, item) => {
+    const salePrice = item.salePrice ?? item.sale_price;
+    const refPrice = item.refPrice ?? item.ref_price;
+    if (salePrice === null || salePrice === undefined || salePrice === "") return sum;
+    return sum + (Number(salePrice || 0) - Number(refPrice || 0));
+  }, 0);
+
+  const furnaceIncome = contracts.reduce((sum, item) => {
+    const furnaceFee = item.furnaceFee ?? item.furnace_fee;
+    return sum + Number(furnaceFee || 0);
+  }, 0);
+
+  const stockRows = inventoryRows.filter((item) => item.status === "库存中");
+  const stockCount = stockRows.length;
+  const stockCost = stockRows.reduce((sum, item) => sum + Number(item.cost || 0), 0);
+
+  return {
+    materialProfit,
+    productProfit,
+    furnaceIncome,
+    totalExtraIncome,
+    totalProfit: materialProfit + productProfit + furnaceIncome + totalExtraIncome,
+    stockCount,
+    stockCost,
+  };
+}, [materials, contracts, inventoryRows, dailyExtraMap]);
 
   const currentWearRanges = wearRanges[materialForm.wearLevel] || [];
   const currentContractWearRanges = wearRanges[contractForm.outputWearLevel] || [];
   const currentPackageWearRanges = wearRanges[packageForm.outputWearLevel] || [];
 
   const dailyDates = useMemo(() => [...new Set([...materials.map((item) => item.date), ...contracts.map((item) => item.date)])].sort((a, b) => b.localeCompare(a)), [materials, contracts]);
-  const dailySummary = useMemo(
-  () => getDailySummary(selectedDailyDate, materials, contracts, dailyExtras),
-  [selectedDailyDate, materials, contracts, dailyExtras]
+const dailySummary = useMemo(
+  () => getDailySummary(selectedDailyDate, materials, contracts, dailyExtraMap),
+  [selectedDailyDate, materials, contracts, dailyExtraMap]
 );
   const inventoryOnlyMaterials = useMemo(() => materials.filter((item) => item.status === "库存中"), [materials]);
   const filteredPackageMaterials = useMemo(() => {
@@ -432,10 +485,10 @@ const contractRows = contracts.map((item) => {
   const dateSummaryMap = useMemo(() => {
     const map = {};
     dailyDates.forEach((date) => {
-map[date] = getDailySummary(date, materials, contracts, dailyExtras);
+map[date] = getDailySummary(date, materials, contracts, dailyExtraMap);
     });
     return map;
-  }, [dailyDates, materials, contracts]);
+  }, [dailyDates, materials, contracts, dailyExtraMap]);
 
 const addSingleMaterial = async () => {
 if (!currentUser || !materialForm.name || !materialForm.cost) return;
@@ -780,7 +833,7 @@ const deleteSelected = async () => {
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex flex-col gap-3 rounded-3xl bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
   <div>
-    <h1 className="text-3xl font-bold tracking-tight text-slate-900">XiaoLu记账1.0</h1>
+    <h1 className="text-3xl font-bold tracking-tight text-slate-900">XiaoLu记账v2.1</h1>
     <div className="mt-2 text-sm text-slate-500">
       当前用户：{currentUser?.email ? currentUser.email.split("@")[0] : "未登录"}
     </div>
@@ -817,13 +870,15 @@ const deleteSelected = async () => {
   </div>
 </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+   <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
           <StatCard title="材料毛利" value={money(stats.materialProfit)} hidden={!visibleStatMap.materialProfit} icon={<Wallet className="h-8 w-8 text-slate-400" />} onToggle={() => toggleStatsVisibility("materialProfit")} />
           <StatCard title="产物出售利润" value={money(stats.productProfit)} hidden={!visibleStatMap.productProfit} icon={<TrendingUp className="h-8 w-8 text-slate-400" />} onToggle={() => toggleStatsVisibility("productProfit")} />
           <StatCard title="开炉费" value={money(stats.furnaceIncome)} hidden={!visibleStatMap.furnaceIncome} icon={<Layers3 className="h-8 w-8 text-slate-400" />} onToggle={() => toggleStatsVisibility("furnaceIncome")} />
           <StatCard title="库存数量" value={String(stats.stockCount)} hidden={!visibleStatMap.stockCount} icon={<Boxes className="h-8 w-8 text-slate-400" />} onToggle={() => toggleStatsVisibility("stockCount")} />
           <StatCard title="库存成本" value={money(stats.stockCost)} hidden={!visibleStatMap.stockCost} icon={<PackageCheck className="h-8 w-8 text-slate-400" />} onToggle={() => toggleStatsVisibility("stockCost")} />
-        </div>
+         <StatCard title="其他" value={money(stats.totalExtraIncome)} hidden={!visibleStatMap.extraIncome} icon={<Wallet className="h-8 w-8 text-slate-400" />} onToggle={() => toggleStatsVisibility("extraIncome")}
+/>
+       </div>
 
         <Tabs defaultValue="materials" className="space-y-6" onValueChange={() => { setEditMode(false); setSelectedIds([]); }}>
           <TabsList className="grid w-full grid-cols-4 rounded-2xl bg-white p-1 shadow-sm">
@@ -1045,6 +1100,7 @@ const deleteSelected = async () => {
                       <TableHead>参考价/成本</TableHead>
                       <TableHead>售价</TableHead>
                       <TableHead>库存状态</TableHead>
+                      <TableHead>出售日期</TableHead>
                       <TableHead>利润</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1097,6 +1153,7 @@ const deleteSelected = async () => {
                           {editMode ? <Input type="number" value={item.salePrice === "" ? "" : item.salePrice} onChange={(e) => updateInventoryField(item, "salePrice", e.target.value)} /> : item.salePrice === "" ? "-" : money(item.salePrice)}
                         </TableCell>
                         <TableCell><Badge className={item.status === "库存中" ? "rounded-full bg-amber-100 text-amber-800 hover:bg-amber-100" : "rounded-full bg-slate-900 text-white hover:bg-slate-900"}>{item.status}</Badge></TableCell>
+                        <TableCell>{item.saleDate || "-"}</TableCell>
                         <TableCell>{item.profit === "" ? "-" : money(item.profit)}</TableCell>
                       </TableRow>
                     ))}
@@ -1348,25 +1405,71 @@ const deleteSelected = async () => {
                   <SummaryRow label="开炉费收入" value={money(dailySummary.furnaceIncome)} clickable active={detailPanel === "furnace"} onClick={() => setDetailPanel("furnace")} />
                  <div className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3">
   <div className="min-w-[80px] text-slate-700">其他</div>
-  <input
-    type="number"
-    value={dailyExtras[selectedDailyDate] ?? ""}
-    onChange={(e) =>
-      setDailyExtras((prev) => ({
-        ...prev,
-        [selectedDailyDate]: e.target.value,
-      }))
-    }
-    placeholder="天天开心^.^"
-    className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
-  />
+
+  {editingExtraDate === selectedDailyDate ? (
+    <>
+      <input
+        type="number"
+        value={editingExtraValue}
+        onChange={(e) => setEditingExtraValue(e.target.value)}
+        placeholder="输入金额"
+        className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+      />
+      <button
+        type="button"
+        onClick={async () => {
+          if (!currentUser?.id) return;
+
+          const amount = Number(editingExtraValue || 0);
+
+          const { error } = await upsertDailyExtraIncome({
+            user_id: currentUser.id,
+            date: selectedDailyDate,
+            amount,
+          });
+
+          if (error) {
+            console.error("保存其他收益失败", error);
+            showToast(`保存其他收益失败：${error.message}`, "error");
+            return;
+          }
+
+          setDailyExtraMap((prev) => ({
+            ...prev,
+            [selectedDailyDate]: amount,
+          }));
+          setEditingExtraDate(null);
+          showToast("其他收益已保存");
+        }}
+        className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+      >
+        完成
+      </button>
+    </>
+  ) : (
+    <>
+      <div className="flex-1 text-sm font-medium text-slate-900">
+        {money(dailySummary.extraValue)}
+      </div>
+      <button
+        type="button"
+        onClick={() => {
+          setEditingExtraDate(selectedDailyDate);
+          setEditingExtraValue(String(dailyExtraMap[selectedDailyDate] ?? ""));
+        }}
+        className="rounded-xl border px-3 py-2 text-sm text-slate-600"
+      >
+        编辑
+      </button>
+    </>
+  )}
 </div>
                   <SummaryRow label="总收益" value={money(dailySummary.totalProfit)} strong />
 
                   <div className="rounded-2xl border bg-slate-50 p-4">
                     <div className="mb-3 text-sm font-medium text-slate-700">{detailTitle}</div>
                     <div className="space-y-2">
-                      {detailItems.length ? detailItems.map((item) => (
+            {(detailItems || []).length ? (detailItems || []).map((item) => (
                         <div key={item.id} className="rounded-xl bg-white px-3 py-3">
                           <div className="flex items-center justify-between">
                             <div className="font-medium">{item.name}</div>
@@ -1393,7 +1496,7 @@ const deleteSelected = async () => {
 function StatCard({ title, value, hidden, icon, onToggle }) {
   return (
     <Card className="rounded-3xl border-0 shadow-sm">
-      <CardContent className="flex items-center justify-between p-5">
+      <CardContent className="flex items-center justify-between p3">
         <div>
           <div className="flex items-center gap-2">
             <p className="text-sm text-slate-500">{title}</p>

@@ -14,3 +14,6 @@ export async function insertContract(payload: any) {
 export async function deleteContractsByIds(ids: number[]) {
   return supabase.from("contracts").delete().in("id", ids);
 }
+export async function updateContractById(id: number, payload: any) {
+  return supabase.from("contracts").update(payload).eq("id", id);
+}

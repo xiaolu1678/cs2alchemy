@@ -12,6 +12,11 @@ export async function fetchMaterials(userId: string) {
 export async function insertMaterial(payload: any) {
   return supabase.from("materials").insert([payload]);
 }
+
 export async function deleteMaterialsByIds(ids: number[]) {
   return supabase.from("materials").delete().in("id", ids);
+}
+
+export async function updateMaterialById(id: number, payload: any) {
+  return supabase.from("materials").update(payload).eq("id", id);
 }
