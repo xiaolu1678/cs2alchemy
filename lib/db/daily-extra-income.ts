@@ -15,14 +15,18 @@ export async function upsertDailyExtraIncome(payload: {
   amount: number;
   note?: string | null;
 }) {
-  const { data: existing, error: existingError } = await supabase
-    .from("daily_extra_income")
-    .select("*")
-    .eq("user_id", payload.user_id)
-    .eq("date", payload.date)
-    .maybeSingle();
+const { data: existingRows, error: existingError } = await supabase
+  .from("daily_extra_income")
+  .select("*")
+  .eq("user_id", payload.user_id)
+  .eq("date", payload.date)
+  .order("id", { ascending: false });
 
-  if (existingError) return { error: existingError };
+if (existingError) return { error: existingError };
+
+const existing = existingRows?.[0];
+
+
 
   if (existing) {
     return supabase
@@ -42,3 +46,5 @@ export async function upsertDailyExtraIncome(payload: {
     },
   ]);
 }
+
+const PAST_PROFIT_DATE = "1900-01-01";

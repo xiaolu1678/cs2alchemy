@@ -1,5 +1,7 @@
 "use client";
 // @ts-nocheck
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -11,13 +13,14 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
     setLoading(true);
 
     const { error } = await supabase.auth.signInWithPassword({
+      
       email,
       password,
     });
@@ -35,7 +38,10 @@ export default function LoginPage() {
 
   async function handleRegister() {
     setLoading(true);
-
+if (password !== confirmPassword) {
+alert("两次密码不一致");
+  return;
+}
     const res = await fetch("/api/register", {
       method: "POST",
       headers: {
@@ -44,7 +50,6 @@ export default function LoginPage() {
       body: JSON.stringify({
         email,
         password,
-        inviteCode,
       }),
     });
 
@@ -58,7 +63,7 @@ export default function LoginPage() {
 
     alert("注册成功，请直接登录");
     setMode("login");
-    setInviteCode("");
+
   }
 
   return (
@@ -84,10 +89,10 @@ export default function LoginPage() {
         }}
       >
         <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800 }}>
-          XiaoLu记账
+          CS2炼金记账
         </h1>
         <p style={{ marginTop: 10, color: "#64748b", fontSize: 14 }}>
-          {mode === "login" ? "登录后进入你的专属账本" : "使用邀请码注册新账号"}
+          {mode === "login" ? "  —— Designed by ZaLL" : "联系作者：QQ 2647060757"}
         </p>
 
         <div
@@ -133,40 +138,48 @@ export default function LoginPage() {
           </button>
         </div>
 
-        <div style={{ marginTop: 18 }}>
-          <label style={labelStyle}>邮箱</label>
-          <input
-            style={inputStyle}
-            type="email"
-            placeholder="请输入邮箱"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </div>
+<div className="space-y-4">
+  <div className="space-y-2">
+    <Label>邮箱</Label>
+    <Input
+      type="email"
+      value={email}
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+        setEmail(e.target.value)
+      }
+      placeholder="请输入邮箱"
+      className="h-14 rounded-2xl"
+    />
+  </div>
 
-        <div style={{ marginTop: 14 }}>
-          <label style={labelStyle}>密码</label>
-          <input
-            style={inputStyle}
-            type="password"
-            placeholder="请输入密码"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
+ <div className="space-y-2">
+    <Label>密码</Label>
+    <Input
+      type="password"
+      value={password}
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+        setPassword(e.target.value)
+      }
+      placeholder="请输入密码"
+      className="h-14 rounded-2xl"
+    />
+  </div>
 
-        {mode === "register" && (
-          <div style={{ marginTop: 14 }}>
-            <label style={labelStyle}>邀请码</label>
-            <input
-              style={inputStyle}
-              type="text"
-              placeholder="请输入邀请码"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)}
-            />
-          </div>
-        )}
+{mode === "register" && (
+  <div className="space-y-2">
+    <Label>确认密码</Label>
+    <Input
+      type="password"
+      value={confirmPassword}
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+        setConfirmPassword(e.target.value)
+      }
+      placeholder="请再次输入密码"
+      className="h-14 rounded-2xl"
+    />
+  </div>
+)}
+</div>
 
         <button
           type="button"

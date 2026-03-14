@@ -41,10 +41,17 @@ const wearRanges = {
   战痕累累: ["0.45 - 0.50", "0.50 - 0.63", "0.63 - 0.76", "0.76 - 0.90", "0.90 - 1.00", "自定义"],
 };
 
-
+const PAST_PROFIT_DATE = "1900-01-01";
 
 function money(value) {
   return `¥${Number(value || 0).toFixed(2)}`;
+}
+
+function getRemainingDays(expiresAt?: string | null) {
+  if (!expiresAt) return 0;
+  const diff = new Date(expiresAt).getTime() - Date.now();
+  if (diff <= 0) return 0;
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
 function computeFurnaceFee(refPrice, result, furnaceRatePercent) {
@@ -158,6 +165,16 @@ React.useEffect(() => {
     }
 
 setCurrentUser(user);
+
+const membership = await loadMembership(user.id, user.email);
+setMembershipInfo(membership);
+
+const expired =
+  !membership?.membership_expires_at ||
+  new Date(membership.membership_expires_at).getTime() < Date.now();
+
+setIsReadonlyMode(expired);
+
 await loadMaterials(user.id);
 await loadContracts(user.id);
 await loadDailyExtraIncome(user.id);
@@ -173,6 +190,118 @@ async function handleLogout() {
   await supabase.auth.signOut();
   router.replace("/login");
 }
+
+async function handleChangePassword() {
+  if (!currentUser?.email) {
+    showToast("当前用户信息异常", "error");
+    return;
+  }
+
+  if (!currentPassword || !newPassword || !confirmNewPassword) {
+    showToast("请填写完整密码信息", "error");
+    return;
+  }
+
+  if (newPassword !== confirmNewPassword) {
+    showToast("两次新密码不一致", "error");
+    return;
+  }
+
+  if (newPassword.length < 6) {
+    showToast("新密码至少 6 位", "error");
+    return;
+  }
+
+  const { error: verifyError } = await supabase.auth.signInWithPassword({
+    email: currentUser.email,
+    password: currentPassword,
+  });
+
+  if (verifyError) {
+    showToast("原密码错误", "error");
+    return;
+  }
+
+  const { error: updateError } = await supabase.auth.updateUser({
+    password: newPassword,
+  });
+
+  if (updateError) {
+    showToast(`修改密码失败：${updateError.message}`, "error");
+    return;
+  }
+
+  setCurrentPassword("");
+  setNewPassword("");
+  setConfirmNewPassword("");
+  showToast("密码修改成功");
+}
+
+async function redeemActivationCode() {
+  if (!currentUser?.id) return;
+
+  if (!activationCodeInput.trim()) {
+    showToast("请输入激活码", "error");
+    return;
+  }
+
+  const { data: codeRow, error: codeError } = await supabase
+    .from("activation_codes")
+    .select("*")
+    .eq("code", activationCodeInput.trim())
+    .eq("is_used", false)
+    .single();
+
+  if (codeError || !codeRow) {
+    showToast("激活码无效或已使用", "error");
+    return;
+  }
+
+  const currentExpire = membershipInfo?.membership_expires_at
+    ? new Date(membershipInfo.membership_expires_at).getTime()
+    : Date.now();
+
+  const baseTime = currentExpire > Date.now() ? currentExpire : Date.now();
+  const nextExpire = new Date(
+    baseTime + Number(codeRow.days || 0) * 24 * 60 * 60 * 1000
+  ).toISOString();
+
+  const { error: updateMembershipError } = await supabase
+    .from("user_memberships")
+    .update({
+      membership_expires_at: nextExpire,
+      is_readonly: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", currentUser.id);
+
+  if (updateMembershipError) {
+    showToast("激活失败", "error");
+    return;
+  }
+
+  const { error: markUsedError } = await supabase
+    .from("activation_codes")
+    .update({
+      is_used: true,
+      used_by: currentUser.id,
+      used_at: new Date().toISOString(),
+    })
+    .eq("id", codeRow.id);
+
+  if (markUsedError) {
+    showToast("激活成功，但激活码状态更新失败", "error");
+    return;
+  }
+
+  const refreshed = await loadMembership(currentUser.id);
+  setMembershipInfo(refreshed);
+  setIsReadonlyMode(false);
+  setActivationCodeInput("");
+
+  showToast("激活成功");
+}
+
 
 async function loadMaterials(userId: string) {
   const { data, error } = await fetchMaterials(userId);
@@ -196,7 +325,7 @@ async function loadContracts(userId: string) {
   setContracts(data || []);
 }
 
-
+const [showPastProfit, setShowPastProfit] = useState(false);
 const [showAllContracts, setShowAllContracts] = useState(false);
   const [showAllMaterials, setShowAllMaterials] = useState(false);
 const [inventoryEdits, setInventoryEdits] = useState<Record<string, any>>({});
@@ -204,6 +333,14 @@ const [inventoryEdits, setInventoryEdits] = useState<Record<string, any>>({});
   const [contracts, setContracts] = useState<any[]>([]);
   const [authChecked, setAuthChecked] = React.useState(false);
   const [currentUser, setCurrentUser] = React.useState<any>(null);
+  const [membershipInfo, setMembershipInfo] = useState<any>(null);
+const [isReadonlyMode, setIsReadonlyMode] = useState(false);
+const [showUserPanel, setShowUserPanel] = useState(false);
+
+const [activationCodeInput, setActivationCodeInput] = useState("");
+const [confirmNewPassword, setConfirmNewPassword] = useState("");
+const [currentPassword, setCurrentPassword] = useState("");
+const [newPassword, setNewPassword] = useState("");
   const [keyword, setKeyword] = useState("");
   const batchInputRefs = React.useRef<Array<HTMLInputElement | null>>([]);
   const [exchangeMode, setExchangeMode] = useState("普通汰换");
@@ -215,6 +352,9 @@ const [dailyExtraMap, setDailyExtraMap] = useState<Record<string, number>>({});
 const [editingExtraDate, setEditingExtraDate] = useState<string | null>(null);
 const [editingExtraValue, setEditingExtraValue] = useState("");
   const [detailPanel, setDetailPanel] = useState("material");
+  const [pastProfit, setPastProfit] = useState(0);
+const [editingPastProfit, setEditingPastProfit] = useState(false);
+const [editingPastProfitValue, setEditingPastProfitValue] = useState("");
 const [visibleStatMap, setVisibleStatMap] = useState({
   materialProfit: false,
   productProfit: false,
@@ -320,6 +460,7 @@ const visibleContracts = useMemo(() => {
 const visibleMaterials = useMemo(() => {
   return showAllMaterials ? filteredMaterials : filteredMaterials.slice(0, 10);
 }, [filteredMaterials, showAllMaterials]);
+const PAST_PROFIT_DATE = "1900-01-01";
 
 async function loadDailyExtraIncome(userId: string) {
   const { data, error } = await fetchDailyExtraIncome(userId);
@@ -330,12 +471,57 @@ async function loadDailyExtraIncome(userId: string) {
   }
 
   const map: Record<string, number> = {};
+  let baseline = 0;
+
   (data || []).forEach((item: any) => {
-    map[item.date] = Number(item.amount || 0);
+    const amount = Number(item.amount || 0);
+
+    if (item.date === PAST_PROFIT_DATE) {
+      baseline = amount;
+    } else {
+      map[item.date] = amount;
+    }
   });
 
   setDailyExtraMap(map);
+  setPastProfit(baseline);
 }
+
+async function loadMembership(userId: string, email?: string | null) {
+  const { data, error } = await supabase
+    .from("user_memberships")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!error && data) {
+    return data;
+  }
+
+  const fallbackUsername = email ? email.split("@")[0] : "用户";
+  const expiresAt = new Date(
+    Date.now() + 8 * 24 * 60 * 60 * 1000
+  ).toISOString();
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("user_memberships")
+    .insert({
+      user_id: userId,
+      username: fallbackUsername,
+      membership_expires_at: expiresAt,
+      is_readonly: false,
+    })
+    .select()
+    .single();
+
+  if (insertError) {
+    console.error("补建会员信息失败", insertError);
+    return null;
+  }
+
+  return inserted;
+}
+
 
   const inventoryRows = useMemo(() => {
 const materialRows = materials.map((item) => {
@@ -442,9 +628,10 @@ const filteredInventory = useMemo(() => {
 
 const stats = useMemo(() => {
   const totalExtraIncome = Object.values(dailyExtraMap).reduce(
-  (sum, value) => sum + Number(value || 0),
-  0
-);
+    (sum, value) => sum + Number(value || 0),
+    0
+  );
+
   const materialProfit = materials.reduce((sum, item) => {
     const salePrice = item.salePrice ?? item.sale_price;
     if (salePrice === null || salePrice === undefined || salePrice === "") return sum;
@@ -472,11 +659,16 @@ const stats = useMemo(() => {
     productProfit,
     furnaceIncome,
     totalExtraIncome,
-    totalProfit: materialProfit + productProfit + furnaceIncome + totalExtraIncome,
+    totalProfit:
+      materialProfit +
+      productProfit +
+      furnaceIncome +
+      totalExtraIncome +
+      Number(pastProfit || 0),
     stockCount,
     stockCost,
   };
-}, [materials, contracts, inventoryRows, dailyExtraMap]);
+}, [materials, contracts, inventoryRows, dailyExtraMap, pastProfit]);
 
   const currentWearRanges = wearRanges[materialForm.wearLevel] || [];
   const currentContractWearRanges = wearRanges[contractForm.outputWearLevel] || [];
@@ -487,6 +679,7 @@ const dailySummary = useMemo(
   () => getDailySummary(selectedDailyDate, materials, contracts, dailyExtraMap),
   [selectedDailyDate, materials, contracts, dailyExtraMap]
 );
+const remainingDays = getRemainingDays(membershipInfo?.membership_expires_at);
   const inventoryOnlyMaterials = useMemo(() => materials.filter((item) => item.status === "库存中"), [materials]);
 const filteredPackageMaterials = useMemo(() => {
   return inventoryOnlyMaterials.filter((item) => {
@@ -567,6 +760,10 @@ const { data, error: reloadError } = await fetchMaterials(currentUser.id);
   const updateBatchPrice = (index, value) => setBatchPrices((prev) => prev.map((item, i) => (i === index ? value : item)));
 
 const addBatchMaterials = async () => {
+  if (isReadonlyMode) {
+  showToast("会员已过期，当前为只读模式", "error");
+  return;
+}
   console.log("addBatchMaterials clicked");
 
   if (!currentUser) {
@@ -634,7 +831,7 @@ const addBatchMaterials = async () => {
   showToast(`批量添加成功，共 ${payloads.length} 条`);
 
   setBatchPrices([""]);
-  setMaterialForm({
+setMaterialForm((prev) => ({
     date: prev.date,
     platform: "BUFF",
     name: "",
@@ -643,7 +840,7 @@ const addBatchMaterials = async () => {
     customWear: "",
     cost: "",
     salePrice: "",
-  });
+  }));
 
   console.log("form reset done");
 };
@@ -653,6 +850,10 @@ const addBatchMaterials = async () => {
   };
 
 const addContract = async () => {
+  if (isReadonlyMode) {
+  showToast("会员已过期，当前为只读模式", "error");
+  return;
+}
   if (!currentUser || !contractForm.outputName || !contractForm.refPrice) return;
 
   const refPrice = Number(contractForm.refPrice || 0);
@@ -725,6 +926,10 @@ const addContract = async () => {
   };
 
   const addPackageContract = () => {
+    if (isReadonlyMode) {
+  showToast("会员已过期，当前为只读模式", "error");
+  return;
+}
     const validCount = packageForm.selectedIds.length === 5 || packageForm.selectedIds.length === 10;
     if (!validCount || !packageForm.outputName) return;
     const salePrice = packageForm.salePrice ? Number(packageForm.salePrice) : "";
@@ -834,6 +1039,10 @@ function updateInventoryField(item: any, field: string, value: any) {
 
 
 async function saveInventoryEdits() {
+  if (isReadonlyMode) {
+  showToast("会员已过期，当前为只读模式", "error");
+  return;
+}
   console.log("saveInventoryEdits 开始执行");
 
   try {
@@ -942,6 +1151,10 @@ async function saveInventoryEdits() {
   const clearSelected = () => setSelectedIds([]);
 
 const deleteSelected = async () => {
+  if (isReadonlyMode) {
+  showToast("会员已过期，当前为只读模式", "error");
+  return;
+}
   if (!selectedIds.length) return;
   if (!window.confirm("删除不可再恢复，是否确认删除？")) return;
 
@@ -1026,6 +1239,100 @@ const deleteSelected = async () => {
   </div>
 )}
       <div className="mx-auto max-w-7xl space-y-6">
+
+{isReadonlyMode && (
+  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+    当前会员已过期，系统已进入只读模式。你仍可查看数据，但无法新增或编辑。购买激活码请联系作者：QQ 2647060757。
+  </div>
+)}
+
+{showUserPanel && (
+  <Card className="rounded-3xl border-0 shadow-sm">
+    <CardHeader className="pb-4">
+      <CardTitle>用户中心</CardTitle>
+    </CardHeader>
+
+    <CardContent className="space-y-4">
+      <div className="grid gap-3 xl:grid-cols-[220px_180px_minmax(0,1fr)_320px]">
+        <div className="min-w-0 rounded-2xl bg-slate-50 px-4 py-3">
+  <div className="text-xs text-slate-500">用户名</div>
+  <div
+    className="mt-2 truncate text-2xl font-bold text-slate-900"
+    title={membershipInfo?.username || currentUser?.email?.split("@")[0] || "-"}
+  >
+    {membershipInfo?.username || currentUser?.email?.split("@")[0] || "-"}
+  </div>
+</div>
+
+        <div className="rounded-2xl bg-slate-50 px-4 py-3">
+          <div className="text-xs text-slate-500">会员剩余</div>
+          <div className="mt-2 text-2xl font-bold text-slate-900">
+            {remainingDays > 0 ? `${remainingDays} 天` : "已过期"}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+          <div className="mb-3 text-sm font-semibold text-slate-900">修改密码</div>
+
+          <div className="grid gap-2 xl:grid-cols-[1fr_1fr_1fr_auto]">
+            <Input
+              type="password"
+              placeholder="原密码"
+              value={currentPassword ?? ""}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="h-10 rounded-xl"
+            />
+
+            <Input
+              type="password"
+              placeholder="新密码"
+              value={newPassword ?? ""}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="h-10 rounded-xl"
+            />
+
+            <Input
+              type="password"
+              placeholder="确认新密码"
+              value={confirmNewPassword ?? ""}
+              onChange={(e) => setConfirmNewPassword(e.target.value)}
+              className="h-10 rounded-xl"
+            />
+
+            <Button
+              onClick={handleChangePassword}
+              className="h-10 rounded-xl px-4"
+            >
+              修改密码
+            </Button>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+          <div className="mb-3 text-sm font-semibold text-slate-900">激活会员</div>
+
+          <div className="grid gap-2 xl:grid-cols-[1fr_auto]">
+            <Input
+              placeholder="输入激活码"
+              value={activationCodeInput ?? ""}
+              onChange={(e) => setActivationCodeInput(e.target.value)}
+              className="h-10 rounded-xl"
+            />
+
+            <Button
+              onClick={redeemActivationCode}
+              className="h-10 rounded-xl px-4"
+            >
+              使用激活码
+            </Button>
+          </div>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+)}
+
+
         <div className="flex flex-col gap-3 rounded-3xl bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
   <div>
     <h1 className="text-3xl font-bold tracking-tight text-slate-900">CS2炼金记账v2.2</h1>
@@ -1054,7 +1361,13 @@ const deleteSelected = async () => {
     {visibleStatMap.totalProfit ? money(stats.totalProfit) : "••••"}
   </span>
 </div>
-
+<button
+  type="button"
+  onClick={() => setShowUserPanel((prev) => !prev)}
+  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+>
+  用户中心
+</button>
     <button
       type="button"
       onClick={handleLogout}
@@ -1228,96 +1541,118 @@ const deleteSelected = async () => {
 
                     <TabsContent value="inventory">
   <Card className="rounded-3xl border-0 shadow-sm">
-    <CardHeader>
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <CardTitle>库存管理</CardTitle>
-        <div className="flex flex-wrap gap-2">
-          {!editMode && (
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-2xl"
-              onClick={() => {
-                setEditMode(true);
-setSelectedIds([]);
-setInventoryEdits({});
-              }}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              编辑总开关
-            </Button>
-          )}
+<CardHeader className="pb-4">
+  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div>
+      <CardTitle className="text-[28px] font-bold tracking-tight text-slate-900">
+        库存管理
+      </CardTitle>
+    </div>
 
-          {editMode && (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-2xl"
-                onClick={selectAllVisible}
-              >
-                全选
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-2xl"
-                onClick={clearSelected}
-              >
-                全不选
-              </Button>
-
-              <Button
-                type="button"
-                variant="destructive"
-                className="rounded-2xl"
-                onClick={deleteSelected}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                删除
-              </Button>
-
-              <Button
+    <div className="flex flex-wrap gap-2">
+      {!editMode && (
+        <Button
   type="button"
-  variant="default"
+  variant="outline"
   className="rounded-2xl"
-  onClick={async () => {
-    console.log("✅ 完成编辑按钮被点击了");
-    await saveInventoryEdits();
+  onClick={() => {
+    if (isReadonlyMode) {
+      showToast("会员已过期，当前为只读模式", "error");
+      return;
+    }
+
+    setEditMode(true);
+    setSelectedIds([]);
+    setInventoryEdits({});
   }}
 >
-  ✅完成编辑
+  <Pencil className="mr-2 h-4 w-4" />
+  编辑总开关
 </Button>
-            </>
-          )}
-        </div>
-      </div>
-    </CardHeader>
+      )}
+
+      {editMode && (
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 rounded-xl border-slate-200 px-4"
+            onClick={selectAllVisible}
+          >
+            全选
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 rounded-xl border-slate-200 px-4"
+            onClick={clearSelected}
+          >
+            全不选
+          </Button>
+
+          <Button
+            type="button"
+            variant="destructive"
+            className="h-10 rounded-xl px-4"
+            onClick={deleteSelected}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            删除
+          </Button>
+
+          <Button
+            type="button"
+            variant="default"
+            className="h-10 rounded-xl px-4"
+            onClick={async () => {
+              await saveInventoryEdits();
+            }}
+          >
+            完成编辑
+          </Button>
+        </>
+      )}
+    </div>
+  </div>
+</CardHeader>
 
     <CardContent className="space-y-4">
-     <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-5">
-  <div className="space-y-1">
-    <Label className="text-xs text-slate-500">日期筛选</Label>
+<div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+  <div className="space-y-1.5">
+    <Label className="text-xs font-medium text-slate-500">日期</Label>
     <Input
       type="date"
-      value={inventoryFilters.date}
+      value={inventoryFilters.date ?? ""}
       onChange={(e) =>
         setInventoryFilters({ ...inventoryFilters, date: e.target.value })
       }
-      className="h-9 rounded-xl"
+      className="h-10 rounded-xl border-slate-200 bg-white text-sm"
     />
   </div>
 
-  <div className="space-y-1">
-    <Label className="text-xs text-slate-500">平台筛选</Label>
+  <div className="space-y-1.5">
+    <Label className="text-xs font-medium text-slate-500">名称</Label>
+    <Input
+      placeholder="搜索名称关键词"
+      value={inventoryFilters.name ?? ""}
+      onChange={(e) =>
+        setInventoryFilters({ ...inventoryFilters, name: e.target.value })
+      }
+      className="h-10 rounded-xl border-slate-200 bg-white text-sm"
+    />
+  </div>
+
+  <div className="space-y-1.5">
+    <Label className="text-xs font-medium text-slate-500">平台</Label>
     <Select
       value={inventoryFilters.platform}
       onValueChange={(value) =>
         setInventoryFilters({ ...inventoryFilters, platform: value })
       }
     >
-      <SelectTrigger className="h-9 rounded-xl">
+      <SelectTrigger className="h-10 w-full rounded-xl border-slate-200 bg-white text-sm">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -1330,27 +1665,15 @@ setInventoryEdits({});
     </Select>
   </div>
 
-  <div className="space-y-1">
-    <Label className="text-xs text-slate-500">名称筛选</Label>
-    <Input
-      placeholder="输入名称关键词"
-      value={inventoryFilters.name}
-      onChange={(e) =>
-        setInventoryFilters({ ...inventoryFilters, name: e.target.value })
-      }
-      className="h-9 rounded-xl"
-    />
-  </div>
-
-  <div className="space-y-1">
-    <Label className="text-xs text-slate-500">磨损等级筛选</Label>
+  <div className="space-y-1.5">
+    <Label className="text-xs font-medium text-slate-500">磨损等级</Label>
     <Select
       value={inventoryFilters.wearLevel}
       onValueChange={(value) =>
         setInventoryFilters({ ...inventoryFilters, wearLevel: value })
       }
     >
-      <SelectTrigger className="h-9 rounded-xl">
+      <SelectTrigger className="h-10 w-full rounded-xl border-slate-200 bg-white text-sm">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -1363,15 +1686,15 @@ setInventoryEdits({});
     </Select>
   </div>
 
-  <div className="space-y-1">
-    <Label className="text-xs text-slate-500">库存状态筛选</Label>
+  <div className="space-y-1.5">
+    <Label className="text-xs font-medium text-slate-500">库存状态</Label>
     <Select
       value={inventoryFilters.status}
       onValueChange={(value) =>
         setInventoryFilters({ ...inventoryFilters, status: value })
       }
     >
-      <SelectTrigger className="h-9 rounded-xl">
+      <SelectTrigger className="h-10 w-full rounded-xl border-slate-200 bg-white text-sm">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -1383,6 +1706,7 @@ setInventoryEdits({});
       </SelectContent>
     </Select>
   </div>
+</div>
 </div>
 
       {editMode && (
@@ -1813,76 +2137,187 @@ setInventoryEdits({});
           <TabsContent value="daily">
             <div className="grid gap-6 lg:grid-cols-[1fr,1fr]">
               <Card className="rounded-3xl border-0 shadow-sm">
-                <CardHeader>
-                  <CardTitle>收益日历</CardTitle>
-                </CardHeader>
-                <CardContent
-  className="space-y-4"
-  onMouseLeave={() => setShowCalendar(false)}
+  <CardHeader className="pb-3">
+    <div className="flex items-center justify-between">
+      <CardTitle>收益日历</CardTitle>
+
+      <button
+        type="button"
+        onClick={() => {
+          setShowPastProfit((prev) => !prev);
+          setEditingPastProfit(false);
+        }}
+        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+      >
+        {showPastProfit ? "隐藏过往收益" : "显示过往收益"}
+      </button>
+    </div>
+  </CardHeader>
+
+  <CardContent onMouseLeave={() => setShowCalendar(false)}>
+    <div
+      className={
+        showPastProfit
+          ? "grid items-stretch gap-4 xl:grid-cols-[220px_minmax(0,1fr)]"
+          : "grid grid-cols-1"
+      }
+    >
+      {showPastProfit && (
+        <div className="flex h-full min-h-[108px] flex-col justify-between rounded-2xl bg-slate-50 px-5 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="text-sm text-slate-500">过往收益</div>
+
+            {!editingPastProfit && (
+              <button
+  type="button"
+  disabled={isReadonlyMode}
+  onClick={() => {
+    if (isReadonlyMode) {
+      showToast("会员已过期，当前为只读模式", "error");
+      return;
+    }
+
+    setEditingPastProfit(true);
+    setEditingPastProfitValue(String(pastProfit || ""));
+  }}
+  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
 >
-  <button
-    type="button"
-    onClick={() => setShowCalendar((prev) => !prev)}
-    className="flex w-full items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-left"
-  >
-    <div>
-      <div className="text-sm text-slate-500">当天收益</div>
-      <div className="mt-1 text-lg font-semibold text-slate-900">
-        {money(dailySummary.totalProfit)}
-      </div>
-    </div>
-    <div className="text-sm text-slate-500">
-      {showCalendar ? "收起 ↑" : "展开日历 ↓"}
-    </div>
-  </button>
+  编辑
+</button>
+            )}
+          </div>
 
-  {showCalendar && (
-    <>
-      <div className="flex items-center gap-2 text-sm text-slate-500">
-        <CalendarDays className="h-4 w-4" />
-        <span>{calendarYear} 年 {calendarMonth} 月</span>
-      </div>
+          {editingPastProfit ? (
+            <div className="mt-3 space-y-2">
+              <input
+                type="number"
+                value={editingPastProfitValue}
+                onChange={(e) => setEditingPastProfitValue(e.target.value)}
+                placeholder="输入过往收益"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!currentUser?.id) return;
 
-      <div className="grid grid-cols-7 gap-2 text-center text-xs text-slate-500">
-        {['日','一','二','三','四','五','六'].map((d) => <div key={d}>{d}</div>)}
-      </div>
+                    const amount = Number(editingPastProfitValue || 0);
 
-      <div className="grid grid-cols-7 gap-2">
-        {monthCells.map((day, index) => {
-          if (!day) return <div key={`empty-${index}`} className="h-20 rounded-2xl bg-transparent" />;
-          const dateKey = `${calendarYear}-${String(calendarMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          const summary = dateSummaryMap[dateKey];
-          if (!summary) {
-            return (
-              <div
-                key={dateKey}
-                className="h-20 rounded-2xl border border-dashed border-slate-200 bg-white/60 p-2 text-slate-300"
-              >
-                {day}
+                    const { error } = await upsertDailyExtraIncome({
+                      user_id: currentUser.id,
+                      date: PAST_PROFIT_DATE,
+                      amount,
+                      note: "past_profit_baseline",
+                    });
+
+                    if (error) {
+                      console.error("保存过往收益失败", error);
+                      showToast(`保存过往收益失败：${error.message}`, "error");
+                      return;
+                    }
+
+                    setPastProfit(amount);
+                    setEditingPastProfit(false);
+                    showToast("过往收益已保存");
+                  }}
+                  className="flex-1 rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+                >
+                  完成
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingPastProfit(false);
+                    setEditingPastProfitValue(String(pastProfit || ""));
+                  }}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"
+                >
+                  取消
+                </button>
               </div>
-            );
-          }
-          return (
-            <button
-              key={dateKey}
-              type="button"
-              onClick={() => setSelectedDailyDate(dateKey)}
-              className={`h-20 rounded-2xl border p-2 text-left ${
-                selectedDailyDate === dateKey
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-200 bg-white"
-              }`}
-            >
-              <div className="text-sm font-semibold">{day}</div>
-              <div className="mt-2 text-xs">{money(summary.totalProfit)}</div>
-            </button>
-          );
-        })}
+            </div>
+          ) : (
+            <div className="mt-4 text-2xl font-bold tracking-tight text-slate-900">
+              {money(pastProfit)}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div className="flex min-h-[108px] items-center justify-between rounded-2xl bg-slate-50 px-5 py-4">
+          <div>
+            <div className="text-sm text-slate-500">当天收益</div>
+            <div className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+              {money(dailySummary.totalProfit)}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowCalendar((prev) => !prev)}
+            className="text-sm font-medium text-slate-500 hover:text-slate-700"
+          >
+            {showCalendar ? "收起日历 ↑" : "展开日历 ↓"}
+          </button>
+        </div>
+
+        {showCalendar && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="mb-4 flex items-center gap-2 text-sm text-slate-500">
+              <CalendarDays className="h-4 w-4" />
+              <span>
+                {calendarYear} 年 {calendarMonth} 月
+              </span>
+            </div>
+
+            <div className="mb-2 grid grid-cols-7 gap-2 text-center text-xs text-slate-400">
+              {["日", "一", "二", "三", "四", "五", "六"].map((d) => (
+                <div key={d}>{d}</div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-2">
+              {monthCells.map((day, index) => {
+                if (!day) {
+                  return (
+                    <div
+                      key={`empty-${index}`}
+                      className="h-20 rounded-2xl bg-transparent"
+                    />
+                  );
+                }
+
+                const dateKey = `${calendarYear}-${String(calendarMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                const summary = dateSummaryMap[dateKey];
+
+                return (
+                  <button
+                    key={dateKey}
+                    type="button"
+                    onClick={() => setSelectedDailyDate(dateKey)}
+                    className={`h-20 rounded-2xl border p-2 text-left transition ${
+                      selectedDailyDate === dateKey
+                        ? "border-slate-900 bg-slate-900 text-white"
+                        : "border-slate-200 bg-slate-50 hover:bg-slate-100"
+                    }`}
+                  >
+                    <div className="text-sm font-semibold">{day}</div>
+                    <div className="mt-2 text-xs">
+                      {money(summary?.totalProfit || 0)}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
-    </>
-  )}
-</CardContent>
-              </Card>
+    </div>
+  </CardContent>
+</Card>
 
               <Card className="rounded-3xl border-0 shadow-sm">
                 <CardHeader>
@@ -1941,19 +2376,29 @@ setInventoryEdits({});
         {money(dailySummary.extraValue)}
       </div>
       <button
-        type="button"
-        onClick={() => {
-          setEditingExtraDate(selectedDailyDate);
-          setEditingExtraValue(String(dailyExtraMap[selectedDailyDate] ?? ""));
-        }}
-        className="rounded-xl border px-3 py-2 text-sm text-slate-600"
-      >
-        编辑
-      </button>
+  type="button"
+  disabled={isReadonlyMode}
+  onClick={() => {
+    if (isReadonlyMode) {
+      showToast("会员已过期，当前为只读模式", "error");
+      return;
+    }
+
+    setEditingExtraDate(selectedDailyDate);
+    setEditingExtraValue(String(dailyExtraMap[selectedDailyDate] ?? ""));
+  }}
+  className="rounded-xl border px-3 py-2 text-sm text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
+>
+  编辑
+</button>
     </>
   )}
 </div>
-                  <SummaryRow label="总收益" value={money(dailySummary.totalProfit)} strong />
+          <SummaryRow
+  label="总收益"
+  value={money(dailySummary.totalProfit + Number(pastProfit || 0))}
+  strong
+/>
 
                   <div className="rounded-2xl border bg-slate-50 p-4">
                     <div className="mb-3 text-sm font-medium text-slate-700">{detailTitle}</div>
