@@ -958,9 +958,6 @@ function updateInventoryField(item: any, field: string, value: any) {
   const patch: any = {
     [field]: value,
   };
-if (field === "date") {
-  patch.date = value;
-}
 
   if (field === "salePrice") {
     const hasSalePrice =
@@ -1078,14 +1075,13 @@ async function saveInventoryEdits() {
 
       if (isContract) {
         const { error } = await updateContractById(rawId, {
-  ...(patch.date !== undefined ? { date: patch.date } : {}),
-  ...(patch.name !== undefined ? { output_name: patch.name } : {}),
-  ...(patch.wearLevel !== undefined ? { output_wear_level: patch.wearLevel } : {}),
-  ...(patch.wearRange !== undefined ? { output_wear_range: patch.wearRange } : {}),
-  ...(patch.salePrice !== undefined ? { sale_price: salePrice } : {}),
-  ...(patch.status !== undefined || patch.salePrice !== undefined ? { status } : {}),
-  ...(patch.saleDate !== undefined || patch.salePrice !== undefined ? { sale_date: saleDate } : {}),
-});
+          ...(patch.name !== undefined ? { output_name: patch.name } : {}),
+          ...(patch.wearLevel !== undefined ? { output_wear_level: patch.wearLevel } : {}),
+          ...(patch.wearRange !== undefined ? { output_wear_range: patch.wearRange } : {}),
+          ...(patch.salePrice !== undefined ? { sale_price: salePrice } : {}),
+          ...(patch.status !== undefined || patch.salePrice !== undefined ? { status } : {}),
+          ...(patch.saleDate !== undefined || patch.salePrice !== undefined ? { sale_date: saleDate } : {}),
+        });
 
         if (error) {
           console.error("更新汰换产物失败", error, rowKey, patch);
@@ -1094,14 +1090,14 @@ async function saveInventoryEdits() {
         }
       } else {
         const { error } = await updateMaterialById(rawId, {
-  ...(patch.platform !== undefined ? { platform: patch.platform } : {}),
-  ...(patch.name !== undefined ? { name: patch.name } : {}),
-  ...(patch.wearLevel !== undefined ? { wear_level: patch.wearLevel } : {}),
-  ...(patch.wearRange !== undefined ? { wear_range: patch.wearRange } : {}),
-  ...(patch.salePrice !== undefined ? { sale_price: salePrice } : {}),
-  ...(patch.status !== undefined || patch.salePrice !== undefined ? { status } : {}),
-  ...(patch.saleDate !== undefined || patch.salePrice !== undefined ? { sale_date: saleDate } : {}),
-});
+          ...(patch.platform !== undefined ? { platform: patch.platform } : {}),
+          ...(patch.name !== undefined ? { name: patch.name } : {}),
+          ...(patch.wearLevel !== undefined ? { wear_level: patch.wearLevel } : {}),
+          ...(patch.wearRange !== undefined ? { wear_range: patch.wearRange } : {}),
+          ...(patch.salePrice !== undefined ? { sale_price: salePrice } : {}),
+          ...(patch.status !== undefined || patch.salePrice !== undefined ? { status } : {}),
+          ...(patch.saleDate !== undefined || patch.salePrice !== undefined ? { sale_date: saleDate } : {}),
+        });
 
         if (error) {
           console.error("更新材料失败", error, rowKey, patch);
@@ -1757,19 +1753,9 @@ const deleteSelected = async () => {
                 </TableCell>
               )}
 
-            <TableCell>
-  {editMode ? (
-    <Input
-      type="date"
-      value={item.date ?? ""}
-      onChange={(e) =>
-        updateInventoryField(item, "date", e.target.value)
-      }
-    />
-  ) : (
-    formatInventoryDate(item.date, Boolean(inventoryFilters.date))
-  )}
-</TableCell>
+              <TableCell>
+                {formatInventoryDate(item.date, Boolean(inventoryFilters.date))}
+              </TableCell>
 
               <TableCell>
                 {editMode && !item.isContract ? (

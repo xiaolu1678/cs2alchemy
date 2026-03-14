@@ -1,5 +1,4 @@
 
 git add .
-git comm
-it -m "update"
+git commit -m "update"
 git push
