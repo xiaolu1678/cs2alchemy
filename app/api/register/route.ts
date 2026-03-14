@@ -4,13 +4,22 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "");
-    const inviteCode = String(body.inviteCode || "").trim();
+    const confirmPassword = String(body.confirmPassword || "");
+    const username = String(body.username || "").trim();
 
-    if (!email || !password || !inviteCode) {
+    if (!email || !password || !confirmPassword) {
       return NextResponse.json(
-        { error: "邮箱、密码和邀请码不能为空" },
+        { error: "邮箱、密码和确认密码不能为空" },
+        { status: 400 }
+      );
+    }
+
+    if (!username) {
+      return NextResponse.json(
+        { error: "用户名不能为空" },
         { status: 400 }
       );
     }
@@ -22,41 +31,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: inviteRow, error: inviteError } = await supabaseAdmin
-      .from("invite_codes")
-      .select("*")
-      .eq("code", inviteCode)
-      .maybeSingle();
-
-    if (inviteError) {
+    if (password !== confirmPassword) {
       return NextResponse.json(
-        { error: "邀请码查询失败", detail: inviteError.message },
-        { status: 500 }
-      );
-    }
-
-    if (!inviteRow) {
-      return NextResponse.json(
-        { error: "邀请码不存在" },
+        { error: "两次密码不一致" },
         { status: 400 }
       );
-    }
-
-    if (inviteRow.is_used) {
-      return NextResponse.json(
-        { error: "邀请码已使用" },
-        { status: 400 }
-      );
-    }
-
-    if (inviteRow.expires_at) {
-      const expiresAt = new Date(inviteRow.expires_at).getTime();
-      if (!Number.isNaN(expiresAt) && expiresAt < Date.now()) {
-        return NextResponse.json(
-          { error: "邀请码已过期" },
-          { status: 400 }
-        );
-      }
     }
 
     const { data: createdUser, error: createError } =
@@ -75,25 +54,40 @@ export async function POST(request: Request) {
 
     const userId = createdUser.user?.id;
 
-    const { error: updateInviteError } = await supabaseAdmin
-      .from("invite_codes")
-      .update({
-        is_used: true,
-        used_by: userId,
-        used_at: new Date().toISOString(),
-      })
-      .eq("id", inviteRow.id);
-
-    if (updateInviteError) {
+    if (!userId) {
       return NextResponse.json(
-        { error: "用户已创建，但邀请码更新失败", detail: updateInviteError.message },
+        { error: "创建用户成功，但未获取到 user id" },
+        { status: 500 }
+      );
+    }
+
+    const expiresAt = new Date(
+      Date.now() + 8 * 24 * 60 * 60 * 1000
+    ).toISOString();
+
+    const { error: membershipError } = await supabaseAdmin
+      .from("user_memberships")
+      .upsert({
+        user_id: userId,
+        username,
+        membership_expires_at: expiresAt,
+        is_readonly: false,
+        updated_at: new Date().toISOString(),
+      });
+
+    if (membershipError) {
+      return NextResponse.json(
+        {
+          error: "用户已创建，但会员信息初始化失败",
+          detail: membershipError.message,
+        },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      message: "注册成功",
+      message: "注册成功，已赠送 8 天免费体验",
     });
   } catch (error: any) {
     return NextResponse.json(

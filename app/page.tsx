@@ -1335,7 +1335,7 @@ const deleteSelected = async () => {
 
         <div className="flex flex-col gap-3 rounded-3xl bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
   <div>
-    <h1 className="text-3xl font-bold tracking-tight text-slate-900">CS2炼金记账v2.2</h1>
+    <h1 className="text-3xl font-bold tracking-tight text-slate-900">CS2炼金记账v1.3</h1>
     <div className="mt-2 text-sm text-slate-500">
       当前用户：{currentUser?.email ? currentUser.email.split("@")[0] : "未登录"}
     </div>
@@ -1364,9 +1364,13 @@ const deleteSelected = async () => {
 <button
   type="button"
   onClick={() => setShowUserPanel((prev) => !prev)}
-  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+  className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+    showUserPanel
+      ? "bg-slate-900 text-white"
+      : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+  }`}
 >
-  用户中心
+  {showUserPanel ? "收起用户中心" : "用户中心"}
 </button>
     <button
       type="button"
@@ -2279,13 +2283,13 @@ const deleteSelected = async () => {
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
               {monthCells.map((day, index) => {
                 if (!day) {
                   return (
                     <div
                       key={`empty-${index}`}
-                      className="h-20 rounded-2xl bg-transparent"
+                     className="h-16 sm:h-20 rounded-[20px] bg-transparent"
                     />
                   );
                 }
@@ -2295,20 +2299,20 @@ const deleteSelected = async () => {
 
                 return (
                   <button
-                    key={dateKey}
-                    type="button"
-                    onClick={() => setSelectedDailyDate(dateKey)}
-                    className={`h-20 rounded-2xl border p-2 text-left transition ${
-                      selectedDailyDate === dateKey
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-slate-50 hover:bg-slate-100"
-                    }`}
-                  >
-                    <div className="text-sm font-semibold">{day}</div>
-                    <div className="mt-2 text-xs">
-                      {money(summary?.totalProfit || 0)}
-                    </div>
-                  </button>
+  key={dateKey}
+  type="button"
+  onClick={() => setSelectedDailyDate(dateKey)}
+  className={`h-16 sm:h-20 rounded-[20px] border px-1.5 py-2 text-center transition ${
+    selectedDailyDate === dateKey
+      ? "border-slate-900 bg-slate-900 text-white"
+      : "border-slate-200 bg-white hover:bg-slate-50"
+  }`}
+>
+  <div className="text-base font-semibold leading-none sm:text-sm">{day}</div>
+  <div className="mt-2 text-[11px] leading-none sm:text-xs">
+    {money(summary?.totalProfit || 0)}
+  </div>
+</button>
                 );
               })}
             </div>
@@ -2425,35 +2429,6 @@ const deleteSelected = async () => {
 }
 
 
-async function loadMyInvite(userId: string) {
-  const { data, error } = await fetchMyInviteCode(userId);
-
-  if (error) {
-    console.error("读取邀请码失败", error);
-    return;
-  }
-
-  setMyInvite(data || null);
-
-  if (!data?.expires_at) {
-    setInviteRemainText("无有效期");
-    return;
-  }
-
-  const now = Date.now();
-  const expires = new Date(data.expires_at).getTime();
-  const diff = expires - now;
-
-  if (diff <= 0) {
-    setInviteRemainText("已过期");
-    return;
-  }
-
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-
-  setInviteRemainText(`${days}天 ${hours}小时`);
-}
 
 function StatCard({ title, value, hidden, icon, onToggle }) {
   return (

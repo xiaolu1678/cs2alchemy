@@ -1,11 +1,11 @@
 "use client";
 // @ts-nocheck
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,53 +17,83 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
-    setLoading(true);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      
-      email,
-      password,
-    });
-
-    setLoading(false);
-
-    if (error) {
-      alert(`登录失败：${error.message}`);
+    if (!email || !password) {
+      alert("邮箱和密码不能为空");
       return;
     }
 
-    router.push("/");
-    router.refresh();
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        alert(`登录失败：${error.message}`);
+        return;
+      }
+
+      router.push("/");
+      router.refresh();
+    } catch (err) {
+      console.error("登录失败", err);
+      alert("登录请求失败，请检查网络或 Supabase 配置");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleRegister() {
-    setLoading(true);
-if (password !== confirmPassword) {
-alert("两次密码不一致");
-  return;
-}
-    const res = await fetch("/api/register", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-        password,
-      }),
-    });
-
-    const result = await res.json();
-    setLoading(false);
-
-    if (!res.ok) {
-      alert(result.error || "注册失败");
+    if (!email || !password || !confirmPassword) {
+      alert("邮箱、密码和确认密码不能为空");
       return;
     }
 
-    alert("注册成功，请直接登录");
-    setMode("login");
+    if (password.length < 6) {
+      alert("密码至少需要 6 位");
+      return;
+    }
 
+    if (password !== confirmPassword) {
+      alert("两次密码不一致");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: email.split("@")[0],
+          email: email.trim(),
+          password,
+          confirmPassword,
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        alert(result?.error || "注册失败");
+        return;
+      }
+
+      alert(result?.message || "注册成功，已赠送 8 天免费体验");
+      setMode("login");
+      setPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      console.error("注册失败", err);
+      alert("注册请求失败，请检查网络或接口配置");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -91,8 +121,11 @@ alert("两次密码不一致");
         <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800 }}>
           CS2炼金记账
         </h1>
+
         <p style={{ marginTop: 10, color: "#64748b", fontSize: 14 }}>
-          {mode === "login" ? "  —— Designed by ZaLL" : "联系作者：QQ 2647060757"}
+          {mode === "login"
+            ? "—— Designed by ZaLL"
+            : "联系作者：QQ 2647060757"}
         </p>
 
         <div
@@ -108,7 +141,10 @@ alert("两次密码不一致");
         >
           <button
             type="button"
-            onClick={() => setMode("login")}
+            onClick={() => {
+              setMode("login");
+              setConfirmPassword("");
+            }}
             style={{
               border: "none",
               borderRadius: 10,
@@ -121,6 +157,7 @@ alert("两次密码不一致");
           >
             登录
           </button>
+
           <button
             type="button"
             onClick={() => setMode("register")}
@@ -138,48 +175,48 @@ alert("两次密码不一致");
           </button>
         </div>
 
-<div className="space-y-4">
-  <div className="space-y-2">
-    <Label>邮箱</Label>
-    <Input
-      type="email"
-      value={email}
-      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-        setEmail(e.target.value)
-      }
-      placeholder="请输入邮箱"
-      className="h-14 rounded-2xl"
-    />
-  </div>
+        <div className="mt-6 space-y-4">
+          <div className="space-y-2">
+            <Label>邮箱</Label>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setEmail(e.target.value)
+              }
+              placeholder="请输入邮箱"
+              className="h-14 rounded-2xl"
+            />
+          </div>
 
- <div className="space-y-2">
-    <Label>密码</Label>
-    <Input
-      type="password"
-      value={password}
-      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-        setPassword(e.target.value)
-      }
-      placeholder="请输入密码"
-      className="h-14 rounded-2xl"
-    />
-  </div>
+          <div className="space-y-2">
+            <Label>密码</Label>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setPassword(e.target.value)
+              }
+              placeholder="请输入密码"
+              className="h-14 rounded-2xl"
+            />
+          </div>
 
-{mode === "register" && (
-  <div className="space-y-2">
-    <Label>确认密码</Label>
-    <Input
-      type="password"
-      value={confirmPassword}
-      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-        setConfirmPassword(e.target.value)
-      }
-      placeholder="请再次输入密码"
-      className="h-14 rounded-2xl"
-    />
-  </div>
-)}
-</div>
+          {mode === "register" && (
+            <div className="space-y-2">
+              <Label>确认密码</Label>
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setConfirmPassword(e.target.value)
+                }
+                placeholder="请再次输入密码"
+                className="h-14 rounded-2xl"
+              />
+            </div>
+          )}
+        </div>
 
         <button
           type="button"
@@ -191,7 +228,7 @@ alert("两次密码不一致");
             border: "none",
             borderRadius: 14,
             padding: "14px 16px",
-            cursor: "pointer",
+            cursor: loading ? "not-allowed" : "pointer",
             background: "#0f172a",
             color: "#fff",
             fontWeight: 800,
@@ -205,21 +242,3 @@ alert("两次密码不一致");
     </main>
   );
 }
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  marginBottom: 8,
-  fontSize: 14,
-  fontWeight: 600,
-  color: "#334155",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "12px 14px",
-  borderRadius: 12,
-  border: "1px solid #cbd5e1",
-  outline: "none",
-  fontSize: 14,
-  boxSizing: "border-box",
-};
