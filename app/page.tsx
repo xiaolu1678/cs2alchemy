@@ -1553,71 +1553,72 @@ const deleteSelected = async () => {
       </CardTitle>
     </div>
 
-    <div className="flex flex-wrap gap-2">
-      {!editMode && (
-        <Button
-  type="button"
-  variant="outline"
-  className="rounded-2xl"
-  onClick={() => {
-    if (isReadonlyMode) {
-      showToast("会员已过期，当前为只读模式", "error");
-      return;
-    }
-
-    setEditMode(true);
-    setSelectedIds([]);
-    setInventoryEdits({});
-  }}
->
-  <Pencil className="mr-2 h-4 w-4" />
-  编辑总开关
-</Button>
-      )}
-
-      {editMode && (
-        <>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 rounded-xl border-slate-200 px-4"
-            onClick={selectAllVisible}
-          >
-            全选
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 rounded-xl border-slate-200 px-4"
-            onClick={clearSelected}
-          >
-            全不选
-          </Button>
-
-          <Button
-            type="button"
-            variant="destructive"
-            className="h-10 rounded-xl px-4"
-            onClick={deleteSelected}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            删除
-          </Button>
-
-          <Button
-            type="button"
-            variant="default"
-            className="h-10 rounded-xl px-4"
-            onClick={async () => {
-              await saveInventoryEdits();
-            }}
-          >
-            完成编辑
-          </Button>
-        </>
-      )}
+<div className="w-full md:w-auto">
+  {!editMode && (
+    <div className="flex justify-end">
+      <Button
+        type="button"
+        variant="outline"
+        className="rounded-2xl"
+        onClick={() => {
+          if (isReadonlyMode) {
+            showToast("会员已过期，当前为只读模式", "error");
+            return;
+          }
+          setEditMode(true);
+          setSelectedIds([]);
+          setInventoryEdits({});
+        }}
+      >
+        <Pencil className="mr-2 h-4 w-4" />
+        编辑总开关
+      </Button>
     </div>
+  )}
+
+  {editMode && (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <Button
+        type="button"
+        variant="outline"
+        className="rounded-2xl w-full"
+        onClick={selectAllVisible}
+      >
+        全选
+      </Button>
+
+      <Button
+        type="button"
+        variant="outline"
+        className="rounded-2xl w-full"
+        onClick={clearSelected}
+      >
+        全不选
+      </Button>
+
+      <Button
+        type="button"
+        variant="destructive"
+        className="rounded-2xl w-full"
+        onClick={deleteSelected}
+      >
+        <Trash2 className="mr-2 h-4 w-4" />
+        删除
+      </Button>
+
+      <Button
+        type="button"
+        variant="default"
+        className="rounded-2xl w-full"
+        onClick={async () => {
+          await saveInventoryEdits();
+        }}
+      >
+        ✅完成编辑
+      </Button>
+    </div>
+  )}
+</div>
   </div>
 </CardHeader>
 
@@ -2451,9 +2452,15 @@ function StatCard({ title, value, hidden, icon, onToggle }) {
 
 function FieldDate({ label, value, onChange, lang }) {
   return (
-    <div className="space-y-2">
+    <div className="w-full space-y-2 min-w-0">
       <Label>{label}</Label>
-      <Input type="date" value={value} lang={lang} onChange={(e) => onChange(e.target.value)} />
+      <Input
+        type="date"
+        value={value ?? ""}
+        lang={lang}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full min-w-0"
+      />
     </div>
   );
 }
