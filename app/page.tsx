@@ -833,7 +833,7 @@ const addBatchMaterials = async () => {
   setBatchPrices([""]);
 setMaterialForm((prev) => ({
     date: prev.date,
-    platform: "BUFF",
+    platform: prev.platform,
     name: "",
     wearLevel: "久经沙场",
     wearRange: "0.15 - 0.18",
