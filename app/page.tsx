@@ -925,31 +925,126 @@ const addContract = async () => {
     });
   };
 
-  const addPackageContract = () => {
-    if (isReadonlyMode) {
-  showToast("会员已过期，当前为只读模式", "error");
-  return;
-}
-    const validCount = packageForm.selectedIds.length === 5 || packageForm.selectedIds.length === 10;
-    if (!validCount || !packageForm.outputName) return;
-    const salePrice = packageForm.salePrice ? Number(packageForm.salePrice) : "";
-setMaterials((prev) =>
-  prev.map((item) =>
+const addPackageContract = async () => {
+  if (isReadonlyMode) {
+    showToast("会员已过期，当前为只读模式", "error");
+    return;
+  }
+
+  if (!currentUser?.id) {
+    showToast("当前用户不存在，请重新登录", "error");
+    return;
+  }
+
+  const validCount =
+    packageForm.selectedIds.length === 5 || packageForm.selectedIds.length === 10;
+
+  if (!validCount) {
+    showToast("包炉材料数量只能是 5 个或 10 个", "error");
+    return;
+  }
+
+  if (!packageForm.outputName?.trim()) {
+    showToast("请输入产物名称", "error");
+    return;
+  }
+
+  const selectedMaterials = materials.filter((item) =>
     packageForm.selectedIds.includes(item.id)
-      ? {
-          ...item,
-          status: "已售出",
-          salePrice: Number(item.cost || 0),
-          sale_price: Number(item.cost || 0),
-          saleDate: new Date().toISOString().slice(0, 10),
-          sale_date: new Date().toISOString().slice(0, 10),
-        }
-      : item
-  )
-);
-    setContracts((prev) => [{ id: Date.now(), date: packageForm.date, contractName: packageForm.contractName || "包炉记录", outputName: packageForm.outputName, outputWearLevel: packageForm.outputWearLevel, outputWearRange: packageForm.outputWearRange, outputCustomWear: packageForm.outputCustomWear, refPrice: Number(packageCost.toFixed(2)), result: packageForm.result, furnaceRate: 0, furnaceFee: 0, salePrice, status: salePrice ? "已售出" : "库存中", type: "包炉" }, ...prev]);
-    setPackageForm((prev) => ({ ...prev, contractName: "", outputName: "", outputWearLevel: "久经沙场", outputWearRange: "0.15 - 0.18", outputCustomWear: "", result: "成功", salePrice: "", selectedIds: [] }));
+  );
+
+  if (!selectedMaterials.length) {
+    showToast("未找到被选中的材料", "error");
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const salePrice =
+    packageForm.salePrice === "" || packageForm.salePrice === null || packageForm.salePrice === undefined
+      ? null
+      : Number(packageForm.salePrice);
+
+  const contractPayload = {
+    date: packageForm.date,
+    type: "包炉",
+    contract_name: packageForm.contractName || "包炉记录",
+    output_name: packageForm.outputName,
+    output_wear_level: packageForm.outputWearLevel,
+    output_wear_range: packageForm.outputWearRange,
+    output_custom_wear: packageForm.outputCustomWear || null,
+    ref_price: Number(packageCost.toFixed(2)),
+    result: packageForm.result,
+    furnace_rate: 0,
+    furnace_fee: 0,
+    sale_price: salePrice,
+    status: salePrice === null ? "库存中" : "已售出",
+    user_id: currentUser.id,
   };
+
+  // 1) 先写入包炉产物到数据库
+  const { error: insertError } = await insertContract(contractPayload);
+
+  if (insertError) {
+    console.error("保存包炉记录失败", insertError);
+    showToast(`保存包炉记录失败：${insertError.message}`, "error");
+    return;
+  }
+
+  // 2) 再把被消耗的材料真正写成已售出，并补 sale_date
+  for (const item of selectedMaterials) {
+    const materialCost = Number(item.cost || 0);
+
+    const { error: materialUpdateError } = await updateMaterialById(item.id, {
+      status: "已售出",
+      sale_price: materialCost,
+      sale_date: today,
+    });
+
+    if (materialUpdateError) {
+      console.error("更新包炉消耗材料失败", materialUpdateError, item);
+      showToast(`更新包炉材料失败：${materialUpdateError.message}`, "error");
+      return;
+    }
+  }
+
+  // 3) 全部成功后，重新拉数据库，保证前端和数据库一致
+  const { data: materialData, error: materialReloadError } = await fetchMaterials(
+    currentUser.id
+  );
+
+  if (materialReloadError) {
+    console.error("刷新材料失败", materialReloadError);
+    showToast(`刷新材料失败：${materialReloadError.message}`, "error");
+    return;
+  }
+
+  const { data: contractData, error: contractReloadError } = await fetchContracts(
+    currentUser.id
+  );
+
+  if (contractReloadError) {
+    console.error("刷新汰换记录失败", contractReloadError);
+    showToast(`刷新汰换记录失败：${contractReloadError.message}`, "error");
+    return;
+  }
+
+  setMaterials(materialData || []);
+  setContracts(contractData || []);
+
+  setPackageForm((prev) => ({
+    ...prev,
+    contractName: "",
+    outputName: "",
+    outputWearLevel: "久经沙场",
+    outputWearRange: "0.15 - 0.18",
+    outputCustomWear: "",
+    result: "成功",
+    salePrice: "",
+    selectedIds: [],
+  }));
+
+  showToast("包炉记录已保存");
+};
 
 function updateInventoryField(item: any, field: string, value: any) {
   const rowKey = item.id;
