@@ -63,6 +63,9 @@ function formatInventoryDate(date, showFullDate) {
   if (showFullDate) return date;
   return typeof date === "string" && date.length >= 10 ? date.slice(5) : date;
 }
+function getTodayDate() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 function calendarMatrix(year, monthIndex) {
   const firstDay = new Date(year, monthIndex, 1);
@@ -122,6 +125,29 @@ function getDailySummary(
     totalProfit: materialProfit + productProfit + furnaceIncome + extraValue,
   };
 }
+
+function getCumulativeMonthProfit(
+  targetDate: string,
+  dateSummaryMap: Record<string, any>
+) {
+  if (!targetDate) return 0;
+
+  const [year, month] = targetDate.split("-");
+  const monthPrefix = `${year}-${month}`;
+
+  const monthDates = Object.keys(dateSummaryMap)
+    .filter((date) => date.startsWith(monthPrefix))
+    .sort((a, b) => a.localeCompare(b));
+
+  if (!monthDates.length) return 0;
+
+  return monthDates
+    .filter((date) => date <= targetDate)
+    .reduce((sum, date) => {
+      return sum + Number(dateSummaryMap[date]?.totalProfit || 0);
+    }, 0);
+}
+
 
 export default function CS2TradeRegisterPrototype() {
 
@@ -346,7 +372,7 @@ const [newPassword, setNewPassword] = useState("");
   const [exchangeMode, setExchangeMode] = useState("普通汰换");
   const [editMode, setEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
-  const [selectedDailyDate, setSelectedDailyDate] = useState("2026-03-10");
+const [selectedDailyDate, setSelectedDailyDate] = useState("");
   const [showCalendar, setShowCalendar] = useState(false);
 const [dailyExtraMap, setDailyExtraMap] = useState<Record<string, number>>({});
 const [editingExtraDate, setEditingExtraDate] = useState<string | null>(null);
@@ -674,11 +700,37 @@ const stats = useMemo(() => {
   const currentContractWearRanges = wearRanges[contractForm.outputWearLevel] || [];
   const currentPackageWearRanges = wearRanges[packageForm.outputWearLevel] || [];
 
-  const dailyDates = useMemo(() => [...new Set([...materials.map((item) => item.date), ...contracts.map((item) => item.date)])].sort((a, b) => b.localeCompare(a)), [materials, contracts]);
+ 
+const dailyDates = useMemo(() => {
+  const set = new Set<string>();
+
+  materials.forEach((item) => {
+    const saleDate = item.saleDate ?? item.sale_date;
+    if (saleDate) set.add(saleDate);
+  });
+
+  contracts.forEach((item) => {
+    const saleDate = item.saleDate ?? item.sale_date;
+    const contractDate = item.date;
+    if (saleDate) set.add(saleDate);
+    if (contractDate) set.add(contractDate);
+  });
+
+  Object.keys(dailyExtraMap || {}).forEach((date) => {
+    if (date) set.add(date);
+  });
+
+  return Array.from(set).sort((a, b) => b.localeCompare(a));
+}, [materials, contracts, dailyExtraMap]);
+
 const dailySummary = useMemo(
   () => getDailySummary(selectedDailyDate, materials, contracts, dailyExtraMap),
   [selectedDailyDate, materials, contracts, dailyExtraMap]
 );
+
+
+
+
 const remainingDays = getRemainingDays(membershipInfo?.membership_expires_at);
   const inventoryOnlyMaterials = useMemo(() => materials.filter((item) => item.status === "库存中"), [materials]);
 const filteredPackageMaterials = useMemo(() => {
@@ -702,13 +754,34 @@ const filteredPackageMaterials = useMemo(() => {
   const calendarSourceDate = selectedDailyDate || dailyDates[0] || "2026-03-01";
   const [calendarYear, calendarMonth] = calendarSourceDate.split("-").map(Number);
   const monthCells = calendarMatrix(calendarYear, calendarMonth - 1);
-  const dateSummaryMap = useMemo(() => {
-    const map = {};
-    dailyDates.forEach((date) => {
-map[date] = getDailySummary(date, materials, contracts, dailyExtraMap);
-    });
-    return map;
-  }, [dailyDates, materials, contracts, dailyExtraMap]);
+const dateSummaryMap = useMemo(() => {
+  const map = {};
+  dailyDates.forEach((date) => {
+    map[date] = getDailySummary(date, materials, contracts, dailyExtraMap);
+  });
+  return map;
+}, [dailyDates, materials, contracts, dailyExtraMap]);
+
+const cumulativeProfit = useMemo(() => {
+  return getCumulativeMonthProfit(selectedDailyDate, dateSummaryMap);
+}, [selectedDailyDate, dateSummaryMap]);
+
+React.useEffect(() => {
+  const savedDate =
+    typeof window !== "undefined"
+      ? localStorage.getItem("daily-selected-date")
+      : null;
+
+  const today = getTodayDate();
+  const nextDate = savedDate || today;
+
+  setSelectedDailyDate((prev) => prev || nextDate);
+}, []);
+
+React.useEffect(() => {
+  if (!selectedDailyDate || typeof window === "undefined") return;
+  localStorage.setItem("daily-selected-date", selectedDailyDate);
+}, [selectedDailyDate]);
 
 const addSingleMaterial = async () => {
 if (!currentUser || !materialForm.name || !materialForm.cost) return;
@@ -1307,8 +1380,7 @@ const deleteSelected = async () => {
     setMaterials((prev) => [{ id: Date.now(), date: selectedDailyDate || "2026-03-10", platform: "BUFF", name: "", wearLevel: "久经沙场", wearRange: "0.15 - 0.18", customWear: "", cost: 0, salePrice: "", status: "库存中", mode: "single" }, ...prev]);
   };
 
-  const detailItems = detailPanel === "material" ? dailySummary.materialDetails : detailPanel === "product" ? dailySummary.productDetails : dailySummary.furnaceDetails;
-  const detailTitle = detailPanel === "material" ? "材料总毛利明细" : detailPanel === "product" ? "产物出售利润明细" : "开炉费收入明细";
+
 
   return (
     <div className="min-h-screen bg-slate-50 p-6">
@@ -2495,25 +2567,12 @@ const deleteSelected = async () => {
   )}
 </div>
           <SummaryRow
-  label="总收益"
-  value={money(dailySummary.totalProfit + Number(pastProfit || 0))}
+  label="累计收益"
+  value={money(cumulativeProfit)}
   strong
 />
 
-                  <div className="rounded-2xl border bg-slate-50 p-4">
-                    <div className="mb-3 text-sm font-medium text-slate-700">{detailTitle}</div>
-                    <div className="space-y-2">
-            {(detailItems || []).length ? (detailItems || []).map((item) => (
-                        <div key={item.id} className="rounded-xl bg-white px-3 py-3">
-                          <div className="flex items-center justify-between">
-                            <div className="font-medium">{item.name}</div>
-                            <div className="font-semibold">{money(item.value)}</div>
-                          </div>
-                          <div className="mt-1 text-xs text-slate-500">{item.note}</div>
-                        </div>
-                      )) : <div className="rounded-xl bg-white px-3 py-4 text-sm text-slate-500">当天暂无这类收益明细。</div>}
-                    </div>
-                  </div>
+                  
                 </CardContent>
               </Card>
             </div>
