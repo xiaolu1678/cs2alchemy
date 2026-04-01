@@ -393,8 +393,13 @@ const [confirmNewPassword, setConfirmNewPassword] = useState("");
 const [currentPassword, setCurrentPassword] = useState("");
 const [newPassword, setNewPassword] = useState("");
   const [keyword, setKeyword] = useState("");
+  const [isAddingMaterials, setIsAddingMaterials] = useState(false);
+const [isSavingEcoContract, setIsSavingEcoContract] = useState(false);
+const [isSavingPackageContract, setIsSavingPackageContract] = useState(false);
+const [isSavingInventoryEdits, setIsSavingInventoryEdits] = useState(false);
+const [isDeletingSelected, setIsDeletingSelected] = useState(false);
   const batchInputRefs = React.useRef<Array<HTMLInputElement | null>>([]);
-  const [exchangeMode, setExchangeMode] = useState("普通汰换");
+  const [exchangeMode, setExchangeMode] = useState("ECO合炉");
   const [editMode, setEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
 const [selectedDailyDate, setSelectedDailyDate] = useState("");
@@ -434,20 +439,28 @@ const [inventoryFilters, setInventoryFilters] = useState({
   wearLevel: "全部",
   status: "全部",
 });
-  const [contractForm, setContractForm] = useState({
-    date: new Date().toISOString().slice(0, 10),
-    contractName: "",
-    outputName: "",
-    outputWearLevel: "久经沙场",
-    outputWearRange: "0.15 - 0.18",
-    outputCustomWear: "",
-    refPrice: "",
-    result: "成功",
-    furnaceRatePercent: "10",
-    salePrice: "",
-  });
+
+const [contractForm, setContractForm] = useState({
+  date: new Date().toISOString().slice(0, 10),
+  contractName: "",
+  outputName: "",
+  outputWearLevel: "久经沙场",
+  outputWearRange: "0.15 - 0.18",
+  outputCustomWear: "",
+  refPrice: "",
+  result: "成功",
+  furnaceRatePercent: "10",
+  salePrice: "",
+  selectedIds: [],
+  materialSalePrices: {},
+});
 
 const [packageFilters, setPackageFilters] = useState({
+  date: "",
+  name: "",
+  platform: "全部",
+});
+const [ecoFilters, setEcoFilters] = useState({
   date: "",
   name: "",
   platform: "全部",
@@ -758,7 +771,30 @@ const dailySummary = useMemo(
 
 
 const remainingDays = getRemainingDays(membershipInfo?.membership_expires_at);
-  const inventoryOnlyMaterials = useMemo(() => materials.filter((item) => item.status === "库存中"), [materials]);
+ const inventoryOnlyMaterials = useMemo(
+  () => materials.filter((item) => item.status === "库存中"),
+  [materials]
+);
+
+const filteredEcoMaterials = useMemo(() => {
+  return inventoryOnlyMaterials.filter((item) => {
+    const matchDate = !ecoFilters.date || item.date === ecoFilters.date;
+    const matchName =
+      !ecoFilters.name ||
+      item.name.toLowerCase().includes(ecoFilters.name.toLowerCase());
+    const matchPlatform =
+      ecoFilters.platform === "全部" || item.platform === ecoFilters.platform;
+
+    return matchDate && matchName && matchPlatform;
+  });
+}, [inventoryOnlyMaterials, ecoFilters]);
+
+const ecoCost = useMemo(() => {
+  return materials
+    .filter((item) => contractForm.selectedIds.includes(item.id))
+    .reduce((sum, item) => sum + Number(item.cost || 0), 0);
+}, [materials, contractForm.selectedIds]);
+
 const filteredPackageMaterials = useMemo(() => {
   return inventoryOnlyMaterials.filter((item) => {
     const matchDate = !packageFilters.date || item.date === packageFilters.date;
@@ -771,7 +807,12 @@ const filteredPackageMaterials = useMemo(() => {
     return matchDate && matchName && matchPlatform;
   });
 }, [inventoryOnlyMaterials, packageFilters]);
-  const packageCost = useMemo(() => materials.filter((item) => packageForm.selectedIds.includes(item.id)).reduce((sum, item) => sum + Number(item.cost || 0), 0), [materials, packageForm.selectedIds]);
+
+const packageCost = useMemo(() => {
+  return materials
+    .filter((item) => packageForm.selectedIds.includes(item.id))
+    .reduce((sum, item) => sum + Number(item.cost || 0), 0);
+}, [materials, packageForm.selectedIds]);
 
   const selectedRows = useMemo(() => filteredInventory.filter((item) => selectedIds.includes(item.id)), [filteredInventory, selectedIds]);
   const selectedSum = useMemo(() => selectedRows.reduce((sum, item) => sum + Number(item.cost || 0), 0), [selectedRows]);
@@ -860,89 +901,98 @@ const { data, error: reloadError } = await fetchMaterials(currentUser.id);
   const updateBatchPrice = (index, value) => setBatchPrices((prev) => prev.map((item, i) => (i === index ? value : item)));
 
 const addBatchMaterials = async () => {
+  if (isAddingMaterials) return;
+
   if (isReadonlyMode) {
-  showToast("会员已过期，当前为只读模式", "error");
-  return;
-}
-  console.log("addBatchMaterials clicked");
-
-  if (!currentUser) {
-    console.log("no currentUser");
-    showToast("当前用户不存在，请重新登录", "error");
+    showToast("会员已过期，当前为只读模式", "error");
     return;
   }
 
-  if (!materialForm.name.trim()) {
-    console.log("material name empty");
-    showToast("材料名称不能为空", "error");
-    return;
+  setIsAddingMaterials(true);
+
+  try {
+    console.log("addBatchMaterials clicked");
+
+    if (!currentUser) {
+      console.log("no currentUser");
+      showToast("当前用户不存在，请重新登录", "error");
+      return;
+    }
+
+    if (!materialForm.name.trim()) {
+      console.log("material name empty");
+      showToast("材料名称不能为空", "error");
+      return;
+    }
+
+    const prices = batchPrices
+      .map((v) => String(v).trim())
+      .filter(Boolean)
+      .map(Number)
+      .filter((v) => !Number.isNaN(v));
+
+    console.log("parsed prices:", prices);
+
+    if (!prices.length) {
+      showToast("请至少填写一个有效进价", "error");
+      return;
+    }
+
+    const payloads = prices.map((price) => ({
+      date: materialForm.date,
+      platform: materialForm.platform,
+      name: materialForm.name,
+      wear_level: materialForm.wearLevel,
+      wear_range: materialForm.wearRange,
+      custom_wear: materialForm.customWear || null,
+      cost: Number(price),
+      sale_price: null,
+      status: "库存中",
+      mode: "batch",
+      user_id: currentUser.id,
+    }));
+
+    console.log("payloads to insert:", payloads);
+
+    const { error } = await supabase.from("materials").insert(payloads);
+
+    if (error) {
+      console.error("批量保存材料失败", error);
+      showToast(`批量保存材料失败：${error.message}`, "error");
+      return;
+    }
+
+    console.log("insert success");
+
+    const { data, error: reloadError } = await fetchMaterials(currentUser.id);
+
+    if (reloadError) {
+      console.error("刷新材料失败", reloadError);
+      showToast(`刷新材料失败：${reloadError.message}`, "error");
+      return;
+    }
+
+    console.log("reload success", data);
+
+    setMaterials(data || []);
+    showToast(`批量添加成功，共 ${payloads.length} 条`);
+
+    setBatchPrices([""]);
+    setMaterialForm((prev) => ({
+      date: prev.date,
+      platform: prev.platform,
+      name: "",
+      wearLevel: "久经沙场",
+      wearRange: "0.15 - 0.18",
+      customWear: "",
+      cost: "",
+      salePrice: "",
+    }));
+
+    console.log("form reset done");
+  } finally {
+    setIsAddingMaterials(false);
   }
-
-  const prices = batchPrices
-    .map((v) => String(v).trim())
-    .filter(Boolean)
-    .map(Number)
-    .filter((v) => !Number.isNaN(v));
-
-  console.log("parsed prices:", prices);
-
-  if (!prices.length) {
-    showToast("请至少填写一个有效进价", "error");
-    return;
-  }
-
-  const payloads = prices.map((price) => ({
-    date: materialForm.date,
-    platform: materialForm.platform,
-    name: materialForm.name,
-    wear_level: materialForm.wearLevel,
-    wear_range: materialForm.wearRange,
-    custom_wear: materialForm.customWear || null,
-    cost: Number(price),
-    sale_price: null,
-    status: "库存中",
-    mode: "batch",
-    user_id: currentUser.id,
-  }));
-
-  console.log("payloads to insert:", payloads);
-
-  const { error } = await supabase.from("materials").insert(payloads);
-
-  if (error) {
-    console.error("批量保存材料失败", error);
-    showToast(`批量保存材料失败：${error.message}`, "error");
-    return;
-  }
-
-  console.log("insert success");
-
-  const { data, error: reloadError } = await fetchMaterials(currentUser.id);
-
-  if (reloadError) {
-    console.error("刷新材料失败", reloadError);
-    showToast(`刷新材料失败：${reloadError.message}`, "error");
-    return;
-  }
-
-  console.log("reload success", data);
-
-  setMaterials(data || []);
-  showToast(`批量添加成功，共 ${payloads.length} 条`);
-
-  setBatchPrices([""]);
-setMaterialForm((prev) => ({
-    date: prev.date,
-    platform: prev.platform,
-    name: "",
-    wearLevel: "久经沙场",
-    wearRange: "0.15 - 0.18",
-    customWear: "",
-    cost: "",
-    salePrice: "",
-  }));
-
-  console.log("form reset done");
 };
 
   const syncContractResult = (nextResult) => {
@@ -950,72 +1000,185 @@ setMaterialForm((prev) => ({
   };
 
 const addContract = async () => {
+  if (isSavingEcoContract) return;
+
   if (isReadonlyMode) {
-  showToast("会员已过期，当前为只读模式", "error");
-  return;
-}
-  if (!currentUser || !contractForm.outputName || !contractForm.refPrice) return;
-
-  const refPrice = Number(contractForm.refPrice || 0);
-  const furnaceFee = computeFurnaceFee(
-    refPrice,
-    contractForm.result,
-    contractForm.furnaceRatePercent
-  );
-  const salePrice =
-    contractForm.salePrice === "" ? null : Number(contractForm.salePrice);
-
-  const payload = {
-    date: contractForm.date,
-    type: "普通汰换",
-    contract_name: contractForm.contractName,
-    output_name: contractForm.outputName,
-    output_wear_level: contractForm.outputWearLevel,
-    output_wear_range: contractForm.outputWearRange,
-    output_custom_wear: contractForm.outputCustomWear || null,
-    ref_price: refPrice,
-    result: contractForm.result,
-    furnace_rate:
-      contractForm.result === "成功"
-        ? Number(contractForm.furnaceRatePercent || 10) / 100
-        : 0,
-    furnace_fee: furnaceFee,
-    sale_price: salePrice,
-    status: salePrice === null ? "库存中" : "已售出",
-    user_id: currentUser.id,
-  };
-
-  const { error } = await insertContract(payload);
-
-  if (error) {
-    console.error("保存汰换记录失败", error);
-    showToast(`保存汰换记录失败：${error.message}`, "error");
+    showToast("会员已过期，当前为只读模式", "error");
     return;
   }
 
-  const { data, error: reloadError } = await fetchContracts(currentUser.id);
+  setIsSavingEcoContract(true);
 
-  if (reloadError) {
-    console.error("刷新汰换记录失败", reloadError);
-  } else {
-    setContracts(data || []);
-    showToast("汰换记录保存成功");
+  try {
+    if (!currentUser?.id) {
+      showToast("当前用户不存在，请重新登录", "error");
+      return;
+    }
+
+    if (!contractForm.outputName?.trim()) {
+      showToast("请输入产物名称", "error");
+      return;
+    }
+
+    if (!contractForm.selectedIds.length) {
+      showToast("请先选择参与合炉的材料", "error");
+      return;
+    }
+
+    const selectedMaterials = materials.filter((item) =>
+      contractForm.selectedIds.includes(item.id)
+    );
+
+    if (!selectedMaterials.length) {
+      showToast("未找到被选中的材料", "error");
+      return;
+    }
+
+    const missingMaterialSalePrice = selectedMaterials.some((item) => {
+      const value = contractForm.materialSalePrices?.[item.id];
+      return value === "" || value === null || value === undefined;
+    });
+
+    if (missingMaterialSalePrice) {
+      showToast("请把每个已选材料的售价都填写完整", "error");
+      return;
+    }
+
+    const refPrice = Number(contractForm.refPrice || 0);
+    const furnaceFee = computeFurnaceFee(
+      refPrice,
+      contractForm.result,
+      contractForm.furnaceRatePercent
+    );
+
+    const salePrice =
+      contractForm.salePrice === "" ? null : Number(contractForm.salePrice);
+
+    const payload = {
+      date: contractForm.date,
+      type: "ECO合炉",
+      contract_name: contractForm.contractName || "ECO合炉记录",
+      output_name: contractForm.outputName,
+      output_wear_level: contractForm.outputWearLevel,
+      output_wear_range: contractForm.outputWearRange,
+      output_custom_wear: contractForm.outputCustomWear || null,
+      ref_price: refPrice,
+      result: contractForm.result,
+      furnace_rate:
+        contractForm.result === "成功"
+          ? Number(contractForm.furnaceRatePercent || 10) / 100
+          : 0,
+      furnace_fee: furnaceFee,
+      sale_price: salePrice,
+      sale_date: salePrice === null ? null : contractForm.date,
+      status: salePrice === null ? "库存中" : "已售出",
+      user_id: currentUser.id,
+    };
+
+    const { error: insertError } = await insertContract(payload);
+
+    if (insertError) {
+      console.error("保存 ECO 合炉记录失败", insertError);
+      showToast(`保存 ECO 合炉记录失败：${insertError.message}`, "error");
+      return;
+    }
+
+    for (const item of selectedMaterials) {
+      const materialSalePrice = Number(
+        contractForm.materialSalePrices?.[item.id] || 0
+      );
+
+      const { error: materialUpdateError } = await updateMaterialById(item.id, {
+        status: "已售出",
+        sale_price: materialSalePrice,
+        sale_date: contractForm.date,
+      });
+
+      if (materialUpdateError) {
+        console.error("更新 ECO 合炉材料失败", materialUpdateError, item);
+        showToast(`更新 ECO 合炉材料失败：${materialUpdateError.message}`, "error");
+        return;
+      }
+    }
+
+    const { data: materialData, error: materialReloadError } =
+      await fetchMaterials(currentUser.id);
+
+    if (materialReloadError) {
+      console.error("刷新材料失败", materialReloadError);
+      showToast(`刷新材料失败：${materialReloadError.message}`, "error");
+      return;
+    }
+
+    const { data: contractData, error: contractReloadError } =
+      await fetchContracts(currentUser.id);
+
+    if (contractReloadError) {
+      console.error("刷新汰换记录失败", contractReloadError);
+      showToast(`刷新汰换记录失败：${contractReloadError.message}`, "error");
+      return;
+    }
+
+    setMaterials(materialData || []);
+    setContracts(contractData || []);
+
+    setContractForm((prev) => ({
+      ...prev,
+      contractName: "",
+      outputName: "",
+      outputWearLevel: "久经沙场",
+      outputWearRange: "0.15 - 0.18",
+      outputCustomWear: "",
+      refPrice: "",
+      result: "成功",
+      furnaceRatePercent: "10",
+      salePrice: "",
+      selectedIds: [],
+      materialSalePrices: {},
+    }));
+
+    showToast("ECO 合炉记录已保存");
+  } finally {
+    setIsSavingEcoContract(false);
   }
-
-  setContractForm((prev) => ({
-    ...prev,
-    contractName: "",
-    outputName: "",
-    outputWearLevel: "久经沙场",
-    outputWearRange: "0.15 - 0.18",
-    outputCustomWear: "",
-    refPrice: "",
-    result: "成功",
-    furnaceRatePercent: "10",
-    salePrice: "",
-  }));
 };
 
+const toggleEcoMaterial = (id) => {
+  setContractForm((prev) => {
+    const exists = prev.selectedIds.includes(id);
+
+    if (exists) {
+      const nextPrices = { ...(prev.materialSalePrices || {}) };
+      delete nextPrices[id];
+
+      return {
+        ...prev,
+        selectedIds: prev.selectedIds.filter((x) => x !== id),
+        materialSalePrices: nextPrices,
+      };
+    }
+
+    if (prev.selectedIds.length >= 10) return prev;
+
+    return {
+      ...prev,
+      selectedIds: [...prev.selectedIds, id],
+      materialSalePrices: {
+        ...(prev.materialSalePrices || {}),
+        [id]: "",
+      },
+    };
+  });
+};
+const updateEcoMaterialSalePrice = (id, value) => {
+  setContractForm((prev) => ({
+    ...prev,
+    materialSalePrices: {
+      ...(prev.materialSalePrices || {}),
+      [id]: value,
+    },
+  }));
+};
   const togglePackageMaterial = (id) => {
     setPackageForm((prev) => {
       const exists = prev.selectedIds.includes(id);
@@ -1026,124 +1189,130 @@ const addContract = async () => {
   };
 
 const addPackageContract = async () => {
+  if (isSavingPackageContract) return;
+
   if (isReadonlyMode) {
     showToast("会员已过期，当前为只读模式", "error");
     return;
   }
 
-  if (!currentUser?.id) {
-    showToast("当前用户不存在，请重新登录", "error");
-    return;
-  }
+  setIsSavingPackageContract(true);
 
-  const validCount =
-    packageForm.selectedIds.length === 5 || packageForm.selectedIds.length === 10;
-
-  if (!validCount) {
-    showToast("包炉材料数量只能是 5 个或 10 个", "error");
-    return;
-  }
-
-  if (!packageForm.outputName?.trim()) {
-    showToast("请输入产物名称", "error");
-    return;
-  }
-
-  const selectedMaterials = materials.filter((item) =>
-    packageForm.selectedIds.includes(item.id)
-  );
-
-  if (!selectedMaterials.length) {
-    showToast("未找到被选中的材料", "error");
-    return;
-  }
-
-  const today = new Date().toISOString().slice(0, 10);
-  const salePrice =
-    packageForm.salePrice === "" || packageForm.salePrice === null || packageForm.salePrice === undefined
-      ? null
-      : Number(packageForm.salePrice);
-
-  const contractPayload = {
-    date: packageForm.date,
-    type: "包炉",
-    contract_name: packageForm.contractName || "包炉记录",
-    output_name: packageForm.outputName,
-    output_wear_level: packageForm.outputWearLevel,
-    output_wear_range: packageForm.outputWearRange,
-    output_custom_wear: packageForm.outputCustomWear || null,
-    ref_price: Number(packageCost.toFixed(2)),
-    result: packageForm.result,
-    furnace_rate: 0,
-    furnace_fee: 0,
-    sale_price: salePrice,
-    status: salePrice === null ? "库存中" : "已售出",
-    user_id: currentUser.id,
-  };
-
-  // 1) 先写入包炉产物到数据库
-  const { error: insertError } = await insertContract(contractPayload);
-
-  if (insertError) {
-    console.error("保存包炉记录失败", insertError);
-    showToast(`保存包炉记录失败：${insertError.message}`, "error");
-    return;
-  }
-
-  // 2) 再把被消耗的材料真正写成已售出，并补 sale_date
-  for (const item of selectedMaterials) {
-    const materialCost = Number(item.cost || 0);
-
-    const { error: materialUpdateError } = await updateMaterialById(item.id, {
-      status: "已售出",
-      sale_price: materialCost,
-      sale_date: today,
-    });
-
-    if (materialUpdateError) {
-      console.error("更新包炉消耗材料失败", materialUpdateError, item);
-      showToast(`更新包炉材料失败：${materialUpdateError.message}`, "error");
+  try {
+    if (!currentUser?.id) {
+      showToast("当前用户不存在，请重新登录", "error");
       return;
     }
+
+    const validCount =
+      packageForm.selectedIds.length === 5 || packageForm.selectedIds.length === 10;
+
+    if (!validCount) {
+      showToast("包炉材料数量只能是 5 个或 10 个", "error");
+      return;
+    }
+
+    if (!packageForm.outputName?.trim()) {
+      showToast("请输入产物名称", "error");
+      return;
+    }
+
+    const selectedMaterials = materials.filter((item) =>
+      packageForm.selectedIds.includes(item.id)
+    );
+
+    if (!selectedMaterials.length) {
+      showToast("未找到被选中的材料", "error");
+      return;
+    }
+
+    const today = packageForm.date || new Date().toISOString().slice(0, 10);
+    const salePrice =
+      packageForm.salePrice === "" ||
+      packageForm.salePrice === null ||
+      packageForm.salePrice === undefined
+        ? null
+        : Number(packageForm.salePrice);
+
+    const contractPayload = {
+      date: packageForm.date,
+      type: "包炉",
+      contract_name: packageForm.contractName || "包炉记录",
+      output_name: packageForm.outputName,
+      output_wear_level: packageForm.outputWearLevel,
+      output_wear_range: packageForm.outputWearRange,
+      output_custom_wear: packageForm.outputCustomWear || null,
+      ref_price: Number(packageCost.toFixed(2)),
+      result: packageForm.result,
+      furnace_rate: 0,
+      furnace_fee: 0,
+      sale_price: salePrice,
+      sale_date: salePrice === null ? null : packageForm.date,
+      status: salePrice === null ? "库存中" : "已售出",
+      user_id: currentUser.id,
+    };
+
+    const { error: insertError } = await insertContract(contractPayload);
+
+    if (insertError) {
+      console.error("保存包炉记录失败", insertError);
+      showToast(`保存包炉记录失败：${insertError.message}`, "error");
+      return;
+    }
+
+    for (const item of selectedMaterials) {
+      const materialCost = Number(item.cost || 0);
+
+      const { error: materialUpdateError } = await updateMaterialById(item.id, {
+        status: "已售出",
+        sale_price: materialCost,
+        sale_date: today,
+      });
+
+      if (materialUpdateError) {
+        console.error("更新包炉消耗材料失败", materialUpdateError, item);
+        showToast(`更新包炉材料失败：${materialUpdateError.message}`, "error");
+        return;
+      }
+    }
+
+    const { data: materialData, error: materialReloadError } =
+      await fetchMaterials(currentUser.id);
+
+    if (materialReloadError) {
+      console.error("刷新材料失败", materialReloadError);
+      showToast(`刷新材料失败：${materialReloadError.message}`, "error");
+      return;
+    }
+
+    const { data: contractData, error: contractReloadError } =
+      await fetchContracts(currentUser.id);
+
+    if (contractReloadError) {
+      console.error("刷新汰换记录失败", contractReloadError);
+      showToast(`刷新汰换记录失败：${contractReloadError.message}`, "error");
+      return;
+    }
+
+    setMaterials(materialData || []);
+    setContracts(contractData || []);
+
+    setPackageForm((prev) => ({
+      ...prev,
+      contractName: "",
+      outputName: "",
+      outputWearLevel: "久经沙场",
+      outputWearRange: "0.15 - 0.18",
+      outputCustomWear: "",
+      result: "成功",
+      salePrice: "",
+      selectedIds: [],
+    }));
+
+    showToast("包炉记录已保存");
+  } finally {
+    setIsSavingPackageContract(false);
   }
-
-  // 3) 全部成功后，重新拉数据库，保证前端和数据库一致
-  const { data: materialData, error: materialReloadError } = await fetchMaterials(
-    currentUser.id
-  );
-
-  if (materialReloadError) {
-    console.error("刷新材料失败", materialReloadError);
-    showToast(`刷新材料失败：${materialReloadError.message}`, "error");
-    return;
-  }
-
-  const { data: contractData, error: contractReloadError } = await fetchContracts(
-    currentUser.id
-  );
-
-  if (contractReloadError) {
-    console.error("刷新汰换记录失败", contractReloadError);
-    showToast(`刷新汰换记录失败：${contractReloadError.message}`, "error");
-    return;
-  }
-
-  setMaterials(materialData || []);
-  setContracts(contractData || []);
-
-  setPackageForm((prev) => ({
-    ...prev,
-    contractName: "",
-    outputName: "",
-    outputWearLevel: "久经沙场",
-    outputWearRange: "0.15 - 0.18",
-    outputCustomWear: "",
-    result: "成功",
-    salePrice: "",
-    selectedIds: [],
-  }));
-
-  showToast("包炉记录已保存");
 };
 
 function updateInventoryField(item: any, field: string, value: any) {
@@ -1167,8 +1336,10 @@ function updateInventoryField(item: any, field: string, value: any) {
       const currentEditedSaleDate = inventoryEdits[rowKey]?.saleDate;
 
       if (!currentSaleDate && !currentEditedSaleDate) {
-        patch.saleDate = new Date().toISOString().slice(0, 10);
-        patch.sale_date = patch.saleDate;
+        patch.saleDate = item.isContract
+          ? item.date || ""
+          : new Date().toISOString().slice(0, 10);
+        patch.sale_date = patch.saleDate || null;
       }
     } else {
       patch.salePrice = "";
@@ -1234,13 +1405,18 @@ function updateInventoryField(item: any, field: string, value: any) {
 
 
 async function saveInventoryEdits() {
+  if (isSavingInventoryEdits) return;
+
   if (isReadonlyMode) {
-  showToast("会员已过期，当前为只读模式", "error");
-  return;
-}
-  console.log("saveInventoryEdits 开始执行");
+    showToast("会员已过期，当前为只读模式", "error");
+    return;
+  }
+
+  setIsSavingInventoryEdits(true);
 
   try {
+    console.log("saveInventoryEdits 开始执行");
+
     const entries = Object.entries(inventoryEdits || {});
     console.log("本次只保存改动行数:", entries.length);
 
@@ -1256,12 +1432,16 @@ async function saveInventoryEdits() {
       const isContract = patch.isContract;
 
       const salePrice =
-        patch.salePrice === "" || patch.salePrice === null || patch.salePrice === undefined
+        patch.salePrice === "" ||
+        patch.salePrice === null ||
+        patch.salePrice === undefined
           ? null
           : Number(patch.salePrice);
 
       const saleDate =
-        patch.saleDate === "" || patch.saleDate === null || patch.saleDate === undefined
+        patch.saleDate === "" ||
+        patch.saleDate === null ||
+        patch.saleDate === undefined
           ? null
           : patch.saleDate;
 
@@ -1271,11 +1451,19 @@ async function saveInventoryEdits() {
       if (isContract) {
         const { error } = await updateContractById(rawId, {
           ...(patch.name !== undefined ? { output_name: patch.name } : {}),
-          ...(patch.wearLevel !== undefined ? { output_wear_level: patch.wearLevel } : {}),
-          ...(patch.wearRange !== undefined ? { output_wear_range: patch.wearRange } : {}),
+          ...(patch.wearLevel !== undefined
+            ? { output_wear_level: patch.wearLevel }
+            : {}),
+          ...(patch.wearRange !== undefined
+            ? { output_wear_range: patch.wearRange }
+            : {}),
           ...(patch.salePrice !== undefined ? { sale_price: salePrice } : {}),
-          ...(patch.status !== undefined || patch.salePrice !== undefined ? { status } : {}),
-          ...(patch.saleDate !== undefined || patch.salePrice !== undefined ? { sale_date: saleDate } : {}),
+          ...(patch.status !== undefined || patch.salePrice !== undefined
+            ? { status }
+            : {}),
+          ...(patch.saleDate !== undefined || patch.salePrice !== undefined
+            ? { sale_date: saleDate }
+            : {}),
         });
 
         if (error) {
@@ -1287,11 +1475,19 @@ async function saveInventoryEdits() {
         const { error } = await updateMaterialById(rawId, {
           ...(patch.platform !== undefined ? { platform: patch.platform } : {}),
           ...(patch.name !== undefined ? { name: patch.name } : {}),
-          ...(patch.wearLevel !== undefined ? { wear_level: patch.wearLevel } : {}),
-          ...(patch.wearRange !== undefined ? { wear_range: patch.wearRange } : {}),
+          ...(patch.wearLevel !== undefined
+            ? { wear_level: patch.wearLevel }
+            : {}),
+          ...(patch.wearRange !== undefined
+            ? { wear_range: patch.wearRange }
+            : {}),
           ...(patch.salePrice !== undefined ? { sale_price: salePrice } : {}),
-          ...(patch.status !== undefined || patch.salePrice !== undefined ? { status } : {}),
-          ...(patch.saleDate !== undefined || patch.salePrice !== undefined ? { sale_date: saleDate } : {}),
+          ...(patch.status !== undefined || patch.salePrice !== undefined
+            ? { status }
+            : {}),
+          ...(patch.saleDate !== undefined || patch.salePrice !== undefined
+            ? { sale_date: saleDate }
+            : {}),
         });
 
         if (error) {
@@ -1333,6 +1529,8 @@ async function saveInventoryEdits() {
   } catch (err) {
     console.error("saveInventoryEdits 崩了", err);
     showToast("保存库存编辑时发生异常", "error");
+  } finally {
+    setIsSavingInventoryEdits(false);
   }
 }
 
@@ -1346,61 +1544,70 @@ async function saveInventoryEdits() {
   const clearSelected = () => setSelectedIds([]);
 
 const deleteSelected = async () => {
+  if (isDeletingSelected) return;
+
   if (isReadonlyMode) {
-  showToast("会员已过期，当前为只读模式", "error");
-  return;
-}
+    showToast("会员已过期，当前为只读模式", "error");
+    return;
+  }
+
   if (!selectedIds.length) return;
   if (!window.confirm("删除不可再恢复，是否确认删除？")) return;
 
-  const materialIds = selectedIds
-    .filter((id) => id.startsWith("material-"))
-    .map((id) => Number(id.replace("material-", "")));
+  setIsDeletingSelected(true);
 
-  const contractIds = selectedIds
-    .filter((id) => id.startsWith("contract-"))
-    .map((id) => Number(id.replace("contract-", "")));
+  try {
+    const materialIds = selectedIds
+      .filter((id) => id.startsWith("material-"))
+      .map((id) => Number(id.replace("material-", "")));
 
-  if (materialIds.length) {
-    const { error } = await deleteMaterialsByIds(materialIds);
-    if (error) {
-      console.error("删除材料失败", error);
-      showToast(`删除材料失败：${error.message}`, "error");
-      return;
+    const contractIds = selectedIds
+      .filter((id) => id.startsWith("contract-"))
+      .map((id) => Number(id.replace("contract-", "")));
+
+    if (materialIds.length) {
+      const { error } = await deleteMaterialsByIds(materialIds);
+      if (error) {
+        console.error("删除材料失败", error);
+        showToast(`删除材料失败：${error.message}`, "error");
+        return;
+      }
     }
+
+    if (contractIds.length) {
+      const { error } = await deleteContractsByIds(contractIds);
+      if (error) {
+        console.error("删除汰换记录失败", error);
+        showToast(`删除汰换记录失败：${error.message}`, "error");
+        return;
+      }
+    }
+
+    if (currentUser?.id) {
+      const { data: materialData, error: materialReloadError } =
+        await fetchMaterials(currentUser.id);
+
+      if (materialReloadError) {
+        console.error("刷新材料失败", materialReloadError);
+      } else {
+        setMaterials(materialData || []);
+      }
+
+      const { data: contractData, error: contractReloadError } =
+        await fetchContracts(currentUser.id);
+
+      if (contractReloadError) {
+        console.error("刷新汰换记录失败", contractReloadError);
+      } else {
+        setContracts(contractData || []);
+      }
+    }
+
+    setSelectedIds([]);
+    showToast("删除成功");
+  } finally {
+    setIsDeletingSelected(false);
   }
-
-  if (contractIds.length) {
-    const { error } = await deleteContractsByIds(contractIds);
-    if (error) {
-      console.error("删除汰换记录失败", error);
-      showToast(`删除汰换记录失败：${error.message}`, "error");
-      return;
-    }
-  }
-
-  if (currentUser?.id) {
-    const { data: materialData, error: materialReloadError } =
-      await fetchMaterials(currentUser.id);
-
-    if (materialReloadError) {
-      console.error("刷新材料失败", materialReloadError);
-    } else {
-      setMaterials(materialData || []);
-    }
-
-    const { data: contractData, error: contractReloadError } =
-      await fetchContracts(currentUser.id);
-
-    if (contractReloadError) {
-      console.error("刷新汰换记录失败", contractReloadError);
-    } else {
-      setContracts(contractData || []);
-    }
-  }
-
-  setSelectedIds([]);
-  showToast("删除成功");
 };
 
   const addInventoryItem = () => {
@@ -1626,6 +1833,9 @@ const deleteSelected = async () => {
     batchInputRefs.current[index] = el;
   }}
   type="number"
+  onWheel={(e) => {
+  e.currentTarget.blur();
+}}
   placeholder={`第 ${index + 1} 个进价`}
   value={price}
   onChange={(e) => {
@@ -1652,7 +1862,14 @@ const deleteSelected = async () => {
                           ))}
                         </div>
                       </div>
-                      <Button onClick={addBatchMaterials} className="w-full rounded-2xl"><Plus className="mr-2 h-4 w-4" />完成添加</Button>
+                     <Button
+  onClick={addBatchMaterials}
+  disabled={isAddingMaterials}
+  className="w-full rounded-2xl"
+>
+  <Plus className="mr-2 h-4 w-4" />
+  {isAddingMaterials ? "添加中..." : "完成添加"}
+</Button>
                     </>
                   
                 </CardContent>
@@ -1791,25 +2008,27 @@ const deleteSelected = async () => {
       </Button>
 
       <Button
-        type="button"
-        variant="destructive"
-        className="rounded-2xl w-full"
-        onClick={deleteSelected}
-      >
-        <Trash2 className="mr-2 h-4 w-4" />
-        删除
-      </Button>
+  type="button"
+  variant="destructive"
+  className="rounded-2xl w-full"
+  disabled={isDeletingSelected}
+  onClick={deleteSelected}
+>
+  <Trash2 className="mr-2 h-4 w-4" />
+  {isDeletingSelected ? "删除中..." : "删除"}
+</Button>
 
       <Button
-        type="button"
-        variant="default"
-        className="rounded-2xl w-full"
-        onClick={async () => {
-          await saveInventoryEdits();
-        }}
-      >
-        ✅完成编辑
-      </Button>
+  type="button"
+  variant="default"
+  className="rounded-2xl w-full"
+  disabled={isSavingInventoryEdits}
+  onClick={async () => {
+    await saveInventoryEdits();
+  }}
+>
+  {isSavingInventoryEdits ? "保存中..." : "✅完成编辑"}
+</Button>
     </div>
   )}
 </div>
@@ -2043,12 +2262,15 @@ const deleteSelected = async () => {
               <TableCell>
                 {editMode ? (
                   <Input
-                    type="number"
-                    value={item.salePrice ?? item.sale_price ?? ""}
-                    onChange={(e) =>
-                      updateInventoryField(item, "salePrice", e.target.value)
-                    }
-                  />
+  type="number"
+  value={item.salePrice ?? item.sale_price ?? ""}
+  onWheel={(e) => {
+    e.currentTarget.blur();
+  }}
+  onChange={(e) =>
+    updateInventoryField(item, "salePrice", e.target.value)
+  }
+/>
                 ) : item.salePrice === "" ||
                   item.salePrice === null ||
                   item.salePrice === undefined ? (
@@ -2115,10 +2337,24 @@ const deleteSelected = async () => {
 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
-                    <Button type="button" variant={exchangeMode === "普通汰换" ? "default" : "ghost"} className="rounded-xl" onClick={() => setExchangeMode("普通汰换")}>ECO合炉</Button>
-                    <Button type="button" variant={exchangeMode === "包炉" ? "default" : "ghost"} className="rounded-xl" onClick={() => setExchangeMode("包炉")}>包炉</Button>
-                  </div>
-                  {exchangeMode === "普通汰换" ? (
+  <Button
+    type="button"
+    variant={exchangeMode === "ECO合炉" ? "default" : "ghost"}
+    className="rounded-xl"
+    onClick={() => setExchangeMode("ECO合炉")}
+  >
+    ECO合炉
+  </Button>
+  <Button
+    type="button"
+    variant={exchangeMode === "包炉" ? "default" : "ghost"}
+    className="rounded-xl"
+    onClick={() => setExchangeMode("包炉")}
+  >
+    包炉
+  </Button>
+</div>
+                  {exchangeMode === "ECO合炉" ? (
                     <>
                       <FieldDate label="日期" value={contractForm.date} onChange={(value) => setContractForm({ ...contractForm, date: value })} />
                       <div className="space-y-2">
@@ -2132,6 +2368,12 @@ const deleteSelected = async () => {
                         <SuggestionList items={outputNameSuggestions} onPick={(name) => setContractForm({ ...contractForm, outputName: name })} />
                       </div>
                       <NumberField label="产物参考价" placeholder="520" value={contractForm.refPrice} onChange={(value) => setContractForm({ ...contractForm, refPrice: value })} />
+                        <div className="space-y-2">
+  <Label>本炉材料成本（仅展示）</Label>
+  <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+    {money(ecoCost)}
+  </div>
+</div>
                       <div className="grid grid-cols-2 gap-3">
                         <SelectField label="汰换结果" value={contractForm.result} options={["成功", "失败"]} onChange={syncContractResult} />
                         <NumberField label="开炉费比例" value={contractForm.result === "失败" ? "0" : contractForm.furnaceRatePercent} onChange={(value) => setContractForm({ ...contractForm, furnaceRatePercent: value })} disabled={contractForm.result === "失败"} />
@@ -2141,10 +2383,147 @@ const deleteSelected = async () => {
                         <SelectField label="产物磨损区间" value={contractForm.outputWearRange} options={currentContractWearRanges} onChange={(value) => setContractForm({ ...contractForm, outputWearRange: value, outputCustomWear: value === "自定义" ? contractForm.outputCustomWear : "" })} />
                       </div>
                       {contractForm.outputWearRange === "自定义" && <TextField label="自定义产物磨损 / 区间" placeholder="例如：0.163 或 0.15 - 0.17" value={contractForm.outputCustomWear} onChange={(value) => setContractForm({ ...contractForm, outputCustomWear: value })} />}
-                      <InfoBox label="开炉费收入" value={money(computeFurnaceFee(Number(contractForm.refPrice || 0), contractForm.result, contractForm.furnaceRatePercent))} note="开炉费单独统计，不参与汰换利润计算。" />
+                      
+<div className="space-y-3 rounded-2xl border p-4">
+  <div className="text-sm font-medium text-slate-700">ECO 合炉选材</div>
+
+  <div className="grid gap-2 md:grid-cols-3">
+    <div className="space-y-1">
+      <Label className="text-xs text-slate-500">日期筛选</Label>
+      <Input
+        type="date"
+        value={ecoFilters.date}
+        onChange={(e) =>
+          setEcoFilters({ ...ecoFilters, date: e.target.value })
+        }
+        className="h-9 rounded-xl"
+      />
+    </div>
+
+    <div className="space-y-1">
+      <Label className="text-xs text-slate-500">名称筛选</Label>
+      <Input
+        placeholder="输入名称关键词"
+        value={ecoFilters.name}
+        onChange={(e) =>
+          setEcoFilters({ ...ecoFilters, name: e.target.value })
+        }
+        className="h-9 rounded-xl"
+      />
+    </div>
+
+    <div className="space-y-1">
+      <Label className="text-xs text-slate-500">平台筛选</Label>
+      <Select
+        value={ecoFilters.platform}
+        onValueChange={(value) =>
+          setEcoFilters({ ...ecoFilters, platform: value })
+        }
+      >
+        <SelectTrigger className="h-9 rounded-xl">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {["全部", ...platformOptions].map((option) => (
+            <SelectItem key={option} value={option}>
+              {option}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  </div>
+
+  <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+    已选 {contractForm.selectedIds.length} 个材料，最多 10 个。
+  </div>
+
+<div className="max-h-80 space-y-2 overflow-auto rounded-2xl border p-3">
+  {filteredEcoMaterials.map((item) => {
+    const active = contractForm.selectedIds.includes(item.id);
+    const wearLevel = item.wearLevel ?? item.wear_level;
+    const wearRange = item.wearRange ?? item.wear_range;
+    const customWear = item.customWear ?? item.custom_wear;
+    const materialSalePrice =
+      contractForm.materialSalePrices?.[item.id] ?? "";
+
+    return (
+      <div
+        key={item.id}
+        className={`rounded-xl border px-3 py-3 ${
+          active ? "bg-slate-900 text-white" : "bg-white"
+        }`}
+      >
+        <button
+          type="button"
+          className="flex w-full items-center justify-between text-left"
+          onClick={() => toggleEcoMaterial(item.id)}
+        >
+          <div className="min-w-0">
+            <div className="font-medium">{item.name}</div>
+            <div className={`text-sm ${active ? "text-slate-300" : "text-slate-500"}`}>
+              {[
+                item.date,
+                item.platform,
+                wearLevel,
+                wearRange === "自定义" ? customWear || "自定义" : wearRange,
+              ]
+                .filter(Boolean)
+                .join(" • ")}
+            </div>
+            <div className={`mt-1 text-xs ${active ? "text-slate-300" : "text-slate-500"}`}>
+              成本：{money(item.cost)}
+            </div>
+          </div>
+          <div className="shrink-0 pl-3 font-semibold">
+            {active ? "已选" : "选择"}
+          </div>
+        </button>
+
+        {active && (
+          <div className="mt-3">
+            <Label className={active ? "text-slate-200" : ""}>材料售价</Label>
+            <Input
+  type="number"
+  placeholder="请输入这条材料的售价"
+  value={materialSalePrice}
+  onClick={(e) => e.stopPropagation()}
+  onWheel={(e) => {
+    e.currentTarget.blur();
+  }}
+  onChange={(e) =>
+    updateEcoMaterialSalePrice(item.id, e.target.value)
+  }
+  className="mt-2 bg-white text-slate-900"
+/>
+          </div>
+        )}
+      </div>
+    );
+  })}
+</div>
+</div>
+
+                      <InfoBox
+  label="开炉费收入"
+  value={money(
+    computeFurnaceFee(
+      Number(contractForm.refPrice || 0),
+      contractForm.result,
+      contractForm.furnaceRatePercent
+    )
+  )}
+  note="开炉费单独统计，不参与汰换利润计算。"
+/>
                       <NumberField label="产物售价（可后补）" placeholder="548" value={contractForm.salePrice} onChange={(value) => setContractForm({ ...contractForm, salePrice: value })} />
-                      <InfoBox label="汰换利润" value={money(Number(contractForm.salePrice || 0) - Number(contractForm.refPrice || 0))} />
-                      <Button onClick={addContract} className="w-full rounded-2xl">保存汰换记录</Button>
+                      
+                      <Button
+  onClick={addContract}
+  disabled={isSavingEcoContract}
+  className="w-full rounded-2xl"
+>
+  {isSavingEcoContract ? "保存中..." : "保存 ECO 合炉记录"}
+</Button>
                     </>
                   ) : (
                     <>
@@ -2238,7 +2617,16 @@ const deleteSelected = async () => {
                         </div>
                       </div>
                       <NumberField label="产物售价（可后补）" placeholder="548" value={packageForm.salePrice} onChange={(value) => setPackageForm({ ...packageForm, salePrice: value })} />
-                      <Button onClick={addPackageContract} disabled={!((packageForm.selectedIds.length === 5 || packageForm.selectedIds.length === 10) && packageForm.outputName)} className="w-full rounded-2xl">保存包炉记录</Button>
+                      <Button
+  onClick={addPackageContract}
+  disabled={
+    isSavingPackageContract ||
+    !((packageForm.selectedIds.length === 5 || packageForm.selectedIds.length === 10) && packageForm.outputName)
+  }
+  className="w-full rounded-2xl"
+>
+  {isSavingPackageContract ? "保存中..." : "保存包炉记录"}
+</Button>
                     </>
                   )}
                 </CardContent>
@@ -2286,7 +2674,7 @@ const deleteSelected = async () => {
   const refPrice = item.refPrice ?? item.ref_price;
   const furnaceFee = item.furnaceFee ?? item.furnace_fee;
   const salePrice = item.salePrice ?? item.sale_price;
-  const type = item.type ?? "普通汰换";
+  const type = item.type ?? "ECO合炉";
   const profit = salePrice ? Number(salePrice) - Number(refPrice || 0) : 0;
 
   return (
@@ -2389,12 +2777,15 @@ const deleteSelected = async () => {
           {editingPastProfit ? (
             <div className="mt-3 space-y-2">
               <input
-                type="number"
-                value={editingPastProfitValue}
-                onChange={(e) => setEditingPastProfitValue(e.target.value)}
-                placeholder="输入过往收益"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
-              />
+  type="number"
+  value={editingPastProfitValue}
+  onWheel={(e) => {
+    e.currentTarget.blur();
+  }}
+  onChange={(e) => setEditingPastProfitValue(e.target.value)}
+  placeholder="输入过往收益"
+  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+/>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -2573,12 +2964,15 @@ const deleteSelected = async () => {
   {editingExtraDate === selectedDailyDate ? (
     <>
       <input
-        type="number"
-        value={editingExtraValue}
-        onChange={(e) => setEditingExtraValue(e.target.value)}
-        placeholder="输入金额"
-        className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
-      />
+  type="number"
+  value={editingExtraValue}
+  onWheel={(e) => {
+    e.currentTarget.blur();
+  }}
+  onChange={(e) => setEditingExtraValue(e.target.value)}
+  placeholder="输入金额"
+  className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+/>
       <button
         type="button"
         onClick={async () => {
@@ -2700,7 +3094,16 @@ function NumberField({ label, value, onChange, placeholder, disabled }) {
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
-      <Input type="number" value={value} placeholder={placeholder} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+      <Input
+        type="number"
+        value={value}
+        placeholder={placeholder}
+        disabled={disabled}
+        onWheel={(e) => {
+          e.currentTarget.blur();
+        }}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </div>
   );
 }
