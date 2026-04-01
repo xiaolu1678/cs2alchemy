@@ -28,7 +28,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Wallet, Boxes, TrendingUp, PackageCheck, Layers3, Pencil, Eye, EyeOff, CalendarDays, Trash2 } from "lucide-react";
+import {
+  Search,
+  Plus,
+  Wallet,
+  Boxes,
+  TrendingUp,
+  PackageCheck,
+  Layers3,
+  Pencil,
+  Eye,
+  EyeOff,
+  CalendarDays,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 const platformOptions = ["BUFF", "C5", "UU有品", "ECO"];
 const inventoryPlatformOptions = ["BUFF", "C5", "UU有品", "ECO", "汰换"];
@@ -65,6 +80,16 @@ function formatInventoryDate(date, showFullDate) {
 }
 function getTodayDate() {
   return new Date().toISOString().slice(0, 10);
+}
+function shiftMonth(dateStr: string, offset: number) {
+  const base = dateStr ? new Date(`${dateStr}T00:00:00`) : new Date();
+  const next = new Date(base.getFullYear(), base.getMonth() + offset, 1);
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+function getMonthStart(dateStr: string) {
+  const base = dateStr ? new Date(`${dateStr}T00:00:00`) : new Date();
+  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
 function calendarMatrix(year, monthIndex) {
@@ -373,6 +398,7 @@ const [newPassword, setNewPassword] = useState("");
   const [editMode, setEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
 const [selectedDailyDate, setSelectedDailyDate] = useState("");
+const [calendarViewDate, setCalendarViewDate] = useState("");
   const [showCalendar, setShowCalendar] = useState(false);
 const [dailyExtraMap, setDailyExtraMap] = useState<Record<string, number>>({});
 const [editingExtraDate, setEditingExtraDate] = useState<string | null>(null);
@@ -751,7 +777,7 @@ const filteredPackageMaterials = useMemo(() => {
   const selectedSum = useMemo(() => selectedRows.reduce((sum, item) => sum + Number(item.cost || 0), 0), [selectedRows]);
   const selectedAvg = useMemo(() => selectedRows.length ? selectedSum / selectedRows.length : 0, [selectedRows, selectedSum]);
 
-  const calendarSourceDate = selectedDailyDate || dailyDates[0] || "2026-03-01";
+const calendarSourceDate = calendarViewDate || getMonthStart(getTodayDate());
   const [calendarYear, calendarMonth] = calendarSourceDate.split("-").map(Number);
   const monthCells = calendarMatrix(calendarYear, calendarMonth - 1);
 const dateSummaryMap = useMemo(() => {
@@ -776,6 +802,7 @@ React.useEffect(() => {
   const nextDate = savedDate || today;
 
   setSelectedDailyDate((prev) => prev || nextDate);
+  setCalendarViewDate((prev) => prev || getMonthStart(today));
 }, []);
 
 React.useEffect(() => {
@@ -1502,7 +1529,7 @@ const deleteSelected = async () => {
 
         <div className="flex flex-col gap-3 rounded-3xl bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
   <div>
-    <h1 className="text-3xl font-bold tracking-tight text-slate-900">CS2炼金记账v1.3</h1>
+    <h1 className="text-3xl font-bold tracking-tight text-slate-900">美好的事情即将发生</h1>
     <div className="mt-2 text-sm text-slate-500">
       当前用户：{currentUser?.email ? currentUser.email.split("@")[0] : "未登录"}
     </div>
@@ -2437,55 +2464,96 @@ const deleteSelected = async () => {
         </div>
 
         {showCalendar && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="mb-4 flex items-center gap-2 text-sm text-slate-500">
-              <CalendarDays className="h-4 w-4" />
-              <span>
-                {calendarYear} 年 {calendarMonth} 月
-              </span>
+  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        <CalendarDays className="h-4 w-4" />
+        <span>
+          {calendarYear} 年 {calendarMonth} 月
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            setCalendarViewDate((prev) =>
+              shiftMonth(prev || getTodayDate(), -1)
+            )
+          }
+          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setCalendarViewDate(getMonthStart(getTodayDate()))}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+        >
+          本月
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setCalendarViewDate((prev) =>
+              shiftMonth(prev || getTodayDate(), 1)
+            )
+          }
+          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+
+    <div className="mb-2 grid grid-cols-7 gap-2 text-center text-xs text-slate-400">
+      {["日", "一", "二", "三", "四", "五", "六"].map((d) => (
+        <div key={d}>{d}</div>
+      ))}
+    </div>
+
+    <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+      {monthCells.map((day, index) => {
+        if (!day) {
+          return (
+            <div
+              key={`empty-${index}`}
+              className="h-16 sm:h-20 rounded-[20px] bg-transparent"
+            />
+          );
+        }
+
+        const dateKey = `${calendarYear}-${String(calendarMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const summary = dateSummaryMap[dateKey];
+
+        return (
+          <button
+            key={dateKey}
+            type="button"
+            onClick={() => {
+              setSelectedDailyDate(dateKey);
+              setCalendarViewDate(getMonthStart(dateKey));
+            }}
+            className={`h-16 sm:h-20 rounded-[20px] border px-1.5 py-2 text-center transition ${
+              selectedDailyDate === dateKey
+                ? "border-slate-900 bg-slate-900 text-white"
+                : "border-slate-200 bg-white hover:bg-slate-50"
+            }`}
+          >
+            <div className="text-base font-semibold leading-none sm:text-sm">
+              {day}
             </div>
-
-            <div className="mb-2 grid grid-cols-7 gap-2 text-center text-xs text-slate-400">
-              {["日", "一", "二", "三", "四", "五", "六"].map((d) => (
-                <div key={d}>{d}</div>
-              ))}
+            <div className="mt-2 text-[11px] leading-none sm:text-xs">
+              {money(summary?.totalProfit || 0)}
             </div>
-
-            <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
-              {monthCells.map((day, index) => {
-                if (!day) {
-                  return (
-                    <div
-                      key={`empty-${index}`}
-                     className="h-16 sm:h-20 rounded-[20px] bg-transparent"
-                    />
-                  );
-                }
-
-                const dateKey = `${calendarYear}-${String(calendarMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                const summary = dateSummaryMap[dateKey];
-
-                return (
-                  <button
-  key={dateKey}
-  type="button"
-  onClick={() => setSelectedDailyDate(dateKey)}
-  className={`h-16 sm:h-20 rounded-[20px] border px-1.5 py-2 text-center transition ${
-    selectedDailyDate === dateKey
-      ? "border-slate-900 bg-slate-900 text-white"
-      : "border-slate-200 bg-white hover:bg-slate-50"
-  }`}
->
-  <div className="text-base font-semibold leading-none sm:text-sm">{day}</div>
-  <div className="mt-2 text-[11px] leading-none sm:text-xs">
-    {money(summary?.totalProfit || 0)}
+          </button>
+        );
+      })}
+    </div>
   </div>
-</button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+)}
       </div>
     </div>
   </CardContent>
