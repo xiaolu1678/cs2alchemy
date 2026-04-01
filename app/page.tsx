@@ -19,7 +19,7 @@ import {
   insertContract,
   deleteContractsByIds,
 } from "@/lib/db/contracts";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -226,9 +226,11 @@ const expired =
 
 setIsReadonlyMode(expired);
 
-await loadMaterials(user.id);
-await loadContracts(user.id);
-await loadDailyExtraIncome(user.id);
+await Promise.all([
+  loadMaterials(user.id),
+  loadContracts(user.id),
+  loadDailyExtraIncome(user.id),
+]);
 
 setAuthChecked(true);
   }
@@ -379,6 +381,7 @@ async function loadContracts(userId: string) {
 const [showPastProfit, setShowPastProfit] = useState(false);
 const [showAllContracts, setShowAllContracts] = useState(false);
   const [showAllMaterials, setShowAllMaterials] = useState(false);
+  const [showAllInventory, setShowAllInventory] = useState(false);
 const [inventoryEdits, setInventoryEdits] = useState<Record<string, any>>({});
   const [materials, setMaterials] = useState<any[]>([]);
   const [contracts, setContracts] = useState<any[]>([]);
@@ -439,6 +442,8 @@ const [inventoryFilters, setInventoryFilters] = useState({
   wearLevel: "全部",
   status: "全部",
 });
+const [inventoryNameInput, setInventoryNameInput] = useState("");
+const [debouncedInventoryName, setDebouncedInventoryName] = useState("");
 
 const [contractForm, setContractForm] = useState({
   date: new Date().toISOString().slice(0, 10),
@@ -465,6 +470,12 @@ const [ecoFilters, setEcoFilters] = useState({
   name: "",
   platform: "全部",
 });
+const [ecoNameInput, setEcoNameInput] = useState("");
+const [debouncedEcoName, setDebouncedEcoName] = useState("");
+const [packageNameInput, setPackageNameInput] = useState("");
+const [debouncedPackageName, setDebouncedPackageName] = useState("");
+const [showAllEcoMaterials, setShowAllEcoMaterials] = useState(false);
+const [showAllPackageMaterials, setShowAllPackageMaterials] = useState(false);
 
   const [packageForm, setPackageForm] = useState({
  date: new Date().toISOString().slice(0, 10),
@@ -525,7 +536,7 @@ const visibleContracts = useMemo(() => {
 const visibleMaterials = useMemo(() => {
   return showAllMaterials ? filteredMaterials : filteredMaterials.slice(0, 10);
 }, [filteredMaterials, showAllMaterials]);
-const PAST_PROFIT_DATE = "1900-01-01";
+
 
 async function loadDailyExtraIncome(userId: string) {
   const { data, error } = await fetchDailyExtraIncome(userId);
@@ -666,7 +677,7 @@ const contractRows = contracts.map((item) => {
   const inventoryWearRangeOptions = useMemo(() => ["全部", ...new Set(inventoryRows.map((item) => item.wearRange).filter(Boolean))], [inventoryRows]);
 
 const filteredInventory = useMemo(() => {
-  return inventoryRows.filter((item) => {
+  const matchedRows = inventoryRows.filter((item) => {
     const matchDate = !inventoryFilters.date || item.date === inventoryFilters.date;
     const matchPlatform =
       inventoryFilters.platform === "全部" ||
@@ -689,7 +700,23 @@ const filteredInventory = useMemo(() => {
       matchStatus
     );
   });
-}, [inventoryRows, inventoryFilters]);
+
+  if (!editMode || !selectedIds.length) {
+    return matchedRows;
+  }
+
+  const selectedRowSet = new Set(selectedIds);
+
+  const pinnedSelectedRows = inventoryRows.filter(
+    (item) => selectedRowSet.has(item.id) && !matchedRows.some((row) => row.id === item.id)
+  );
+
+  return [...pinnedSelectedRows, ...matchedRows];
+}, [inventoryRows, inventoryFilters, editMode, selectedIds]);
+
+const visibleInventory = useMemo(() => {
+  return showAllInventory ? filteredInventory : filteredInventory.slice(0, 20);
+}, [filteredInventory, showAllInventory]);
 
 const stats = useMemo(() => {
   const totalExtraIncome = Object.values(dailyExtraMap).reduce(
@@ -788,6 +815,11 @@ const filteredEcoMaterials = useMemo(() => {
     return matchDate && matchName && matchPlatform;
   });
 }, [inventoryOnlyMaterials, ecoFilters]);
+const visibleEcoMaterials = useMemo(() => {
+  return showAllEcoMaterials
+    ? filteredEcoMaterials
+    : filteredEcoMaterials.slice(0, 10);
+}, [filteredEcoMaterials, showAllEcoMaterials]);
 
 const ecoCost = useMemo(() => {
   return materials
@@ -807,16 +839,32 @@ const filteredPackageMaterials = useMemo(() => {
     return matchDate && matchName && matchPlatform;
   });
 }, [inventoryOnlyMaterials, packageFilters]);
+const visiblePackageMaterials = useMemo(() => {
+  return showAllPackageMaterials
+    ? filteredPackageMaterials
+    : filteredPackageMaterials.slice(0, 10);
+}, [filteredPackageMaterials, showAllPackageMaterials]);
 
 const packageCost = useMemo(() => {
   return materials
     .filter((item) => packageForm.selectedIds.includes(item.id))
     .reduce((sum, item) => sum + Number(item.cost || 0), 0);
 }, [materials, packageForm.selectedIds]);
+const shouldShowEcoMaterialList =
+  Boolean(ecoFilters.date) ||
+  Boolean(ecoFilters.name.trim()) ||
+  ecoFilters.platform !== "全部";
 
-  const selectedRows = useMemo(() => filteredInventory.filter((item) => selectedIds.includes(item.id)), [filteredInventory, selectedIds]);
+const shouldShowPackageMaterialList =
+  Boolean(packageFilters.date) ||
+  Boolean(packageFilters.name.trim()) ||
+  packageFilters.platform !== "全部";
+
+const selectedRows = useMemo(() => visibleInventory.filter((item) => selectedIds.includes(item.id)), [visibleInventory, selectedIds]);
   const selectedSum = useMemo(() => selectedRows.reduce((sum, item) => sum + Number(item.cost || 0), 0), [selectedRows]);
   const selectedAvg = useMemo(() => selectedRows.length ? selectedSum / selectedRows.length : 0, [selectedRows, selectedSum]);
+
+const isRowEditable = (rowId: string) => editMode && selectedIds.includes(rowId);
 
 const calendarSourceDate = calendarViewDate || getMonthStart(getTodayDate());
   const [calendarYear, calendarMonth] = calendarSourceDate.split("-").map(Number);
@@ -851,42 +899,103 @@ React.useEffect(() => {
   localStorage.setItem("daily-selected-date", selectedDailyDate);
 }, [selectedDailyDate]);
 
+React.useEffect(() => {
+  setShowAllInventory(false);
+}, [inventoryFilters]);
+React.useEffect(() => {
+  setShowAllEcoMaterials(false);
+}, [ecoFilters]);
+
+React.useEffect(() => {
+  setShowAllPackageMaterials(false);
+}, [packageFilters]);
+useEffect(() => {
+  const timer = setTimeout(() => {
+    setDebouncedEcoName(ecoNameInput);
+  }, 180);
+
+  return () => clearTimeout(timer);
+}, [ecoNameInput]);
+
+useEffect(() => {
+  setEcoFilters((prev) => ({
+    ...prev,
+    name: debouncedEcoName,
+  }));
+}, [debouncedEcoName]);
+
+useEffect(() => {
+  const timer = setTimeout(() => {
+    setDebouncedPackageName(packageNameInput);
+  }, 180);
+
+  return () => clearTimeout(timer);
+}, [packageNameInput]);
+
+useEffect(() => {
+  setPackageFilters((prev) => ({
+    ...prev,
+    name: debouncedPackageName,
+  }));
+}, [debouncedPackageName]);
+useEffect(() => {
+  const timer = setTimeout(() => {
+    setDebouncedInventoryName(inventoryNameInput);
+  }, 180);
+
+  return () => clearTimeout(timer);
+}, [inventoryNameInput]);
+
+useEffect(() => {
+  setInventoryFilters((prev) => ({
+    ...prev,
+    name: debouncedInventoryName,
+  }));
+}, [debouncedInventoryName]);
+
 const addSingleMaterial = async () => {
-if (!currentUser || !materialForm.name || !materialForm.cost) return;
+  if (!currentUser || !materialForm.name || !materialForm.cost) return;
 
   const salePrice =
     materialForm.salePrice === "" ? null : Number(materialForm.salePrice);
 
   const payload = {
-  date: materialForm.date,
-  platform: materialForm.platform,
-  name: materialForm.name,
-  wear_level: materialForm.wearLevel,
-  wear_range: materialForm.wearRange,
-  custom_wear: materialForm.customWear || null,
-  cost: Number(materialForm.cost),
-  sale_price: salePrice,
-  status: salePrice === null ? "库存中" : "已售出",
-  mode: "single",
-  user_id: currentUser.id,
-};
+    date: materialForm.date,
+    platform: materialForm.platform,
+    name: materialForm.name,
+    wear_level: materialForm.wearLevel,
+    wear_range: materialForm.wearRange,
+    custom_wear: materialForm.customWear || null,
+    cost: Number(materialForm.cost),
+    sale_price: salePrice,
+    status: salePrice === null ? "库存中" : "已售出",
+    mode: "single",
+    user_id: currentUser.id,
+  };
 
-  const { error } = await insertMaterial(payload);
+  const { data: insertedRow, error } = await supabase
+    .from("materials")
+    .insert(payload)
+    .select()
+    .single();
 
-if (error) {
-  console.error("保存材料失败", error);
-  showToast(`保存材料失败：${error.message}`, "error");
-  return;
-}
-
-const { data, error: reloadError } = await fetchMaterials(currentUser.id);
-
-  if (reloadError) {
-    console.error("刷新材料失败", reloadError);
-  } else {
-    setMaterials(data || []);
-    showToast("保存成功");
+  if (error) {
+    console.error("保存材料失败", error);
+    showToast(`保存材料失败：${error.message}`, "error");
+    return;
   }
+
+  const normalizedInsertedRow = {
+    ...insertedRow,
+    wearLevel: insertedRow.wearLevel ?? insertedRow.wear_level,
+    wearRange: insertedRow.wearRange ?? insertedRow.wear_range,
+    customWear: insertedRow.customWear ?? insertedRow.custom_wear,
+    salePrice: insertedRow.salePrice ?? insertedRow.sale_price,
+    saleDate: insertedRow.saleDate ?? insertedRow.sale_date,
+  };
+
+  setMaterials((prev) => [normalizedInsertedRow, ...prev]);
+  showToast("保存成功");
 
   setMaterialForm((prev) => ({
     ...prev,
@@ -954,28 +1063,30 @@ const addBatchMaterials = async () => {
 
     console.log("payloads to insert:", payloads);
 
-    const { error } = await supabase.from("materials").insert(payloads);
+const { data: insertedRows, error } = await supabase
+  .from("materials")
+  .insert(payloads)
+  .select();
 
-    if (error) {
-      console.error("批量保存材料失败", error);
-      showToast(`批量保存材料失败：${error.message}`, "error");
-      return;
-    }
+if (error) {
+  console.error("批量保存材料失败", error);
+  showToast(`批量保存材料失败：${error.message}`, "error");
+  return;
+}
 
-    console.log("insert success");
+console.log("insert success", insertedRows);
 
-    const { data, error: reloadError } = await fetchMaterials(currentUser.id);
+const normalizedInsertedRows = (insertedRows || []).map((item) => ({
+  ...item,
+  wearLevel: item.wearLevel ?? item.wear_level,
+  wearRange: item.wearRange ?? item.wear_range,
+  customWear: item.customWear ?? item.custom_wear,
+  salePrice: item.salePrice ?? item.sale_price,
+  saleDate: item.saleDate ?? item.sale_date,
+}));
 
-    if (reloadError) {
-      console.error("刷新材料失败", reloadError);
-      showToast(`刷新材料失败：${reloadError.message}`, "error");
-      return;
-    }
-
-    console.log("reload success", data);
-
-    setMaterials(data || []);
-    showToast(`批量添加成功，共 ${payloads.length} 条`);
+setMaterials((prev) => [...normalizedInsertedRows, ...prev]);
+showToast(`批量添加成功，共 ${payloads.length} 条`);
 
     setBatchPrices([""]);
     setMaterialForm((prev) => ({
@@ -1075,7 +1186,7 @@ const addContract = async () => {
       user_id: currentUser.id,
     };
 
-    const { error: insertError } = await insertContract(payload);
+  const { data: insertedContract, error: insertError } = await insertContract(payload);
 
     if (insertError) {
       console.error("保存 ECO 合炉记录失败", insertError);
@@ -1083,44 +1194,73 @@ const addContract = async () => {
       return;
     }
 
-    for (const item of selectedMaterials) {
-      const materialSalePrice = Number(
-        contractForm.materialSalePrices?.[item.id] || 0
-      );
+const materialUpdateResults = await Promise.all(
+  selectedMaterials.map(async (item) => {
+    const materialSalePrice = Number(
+      contractForm.materialSalePrices?.[item.id] || 0
+    );
 
-      const { error: materialUpdateError } = await updateMaterialById(item.id, {
-        status: "已售出",
-        sale_price: materialSalePrice,
-        sale_date: contractForm.date,
-      });
+    const { error } = await updateMaterialById(item.id, {
+      status: "已售出",
+      sale_price: materialSalePrice,
+      sale_date: contractForm.date,
+    });
 
-      if (materialUpdateError) {
-        console.error("更新 ECO 合炉材料失败", materialUpdateError, item);
-        showToast(`更新 ECO 合炉材料失败：${materialUpdateError.message}`, "error");
-        return;
-      }
-    }
+    return {
+      item,
+      error,
+    };
+  })
+);
 
-    const { data: materialData, error: materialReloadError } =
-      await fetchMaterials(currentUser.id);
+const failedMaterialUpdate = materialUpdateResults.find((result) => result.error);
 
-    if (materialReloadError) {
-      console.error("刷新材料失败", materialReloadError);
-      showToast(`刷新材料失败：${materialReloadError.message}`, "error");
-      return;
-    }
+if (failedMaterialUpdate) {
+  console.error("更新 ECO 合炉材料失败", failedMaterialUpdate.error, failedMaterialUpdate.item);
+  showToast(`更新 ECO 合炉材料失败：${failedMaterialUpdate.error.message}`, "error");
+  return;
+}
 
-    const { data: contractData, error: contractReloadError } =
-      await fetchContracts(currentUser.id);
+setMaterials((prev) =>
+  prev.map((item) => {
+    if (!contractForm.selectedIds.includes(item.id)) return item;
 
-    if (contractReloadError) {
-      console.error("刷新汰换记录失败", contractReloadError);
-      showToast(`刷新汰换记录失败：${contractReloadError.message}`, "error");
-      return;
-    }
+    const materialSalePrice = Number(
+      contractForm.materialSalePrices?.[item.id] || 0
+    );
 
-    setMaterials(materialData || []);
-    setContracts(contractData || []);
+    return {
+      ...item,
+      status: "已售出",
+      sale_price: materialSalePrice,
+      salePrice: materialSalePrice,
+      sale_date: contractForm.date,
+      saleDate: contractForm.date,
+    };
+  })
+);
+
+if (insertedContract) {
+  const normalizedInsertedContract = {
+    ...insertedContract,
+    contractName:
+      insertedContract.contractName ?? insertedContract.contract_name,
+    outputName:
+      insertedContract.outputName ?? insertedContract.output_name,
+    outputWearLevel:
+      insertedContract.outputWearLevel ?? insertedContract.output_wear_level,
+    outputWearRange:
+      insertedContract.outputWearRange ?? insertedContract.output_wear_range,
+    outputCustomWear:
+      insertedContract.outputCustomWear ?? insertedContract.output_custom_wear,
+    refPrice: insertedContract.refPrice ?? insertedContract.ref_price,
+    furnaceFee: insertedContract.furnaceFee ?? insertedContract.furnace_fee,
+    salePrice: insertedContract.salePrice ?? insertedContract.sale_price,
+    saleDate: insertedContract.saleDate ?? insertedContract.sale_date,
+  };
+
+  setContracts((prev) => [normalizedInsertedContract, ...prev]);
+}
 
     setContractForm((prev) => ({
       ...prev,
@@ -1252,7 +1392,7 @@ const addPackageContract = async () => {
       user_id: currentUser.id,
     };
 
-    const { error: insertError } = await insertContract(contractPayload);
+    const { data: insertedContract, error: insertError } = await insertContract(contractPayload);
 
     if (insertError) {
       console.error("保存包炉记录失败", insertError);
@@ -1260,42 +1400,69 @@ const addPackageContract = async () => {
       return;
     }
 
-    for (const item of selectedMaterials) {
-      const materialCost = Number(item.cost || 0);
+ const materialUpdateResults = await Promise.all(
+  selectedMaterials.map(async (item) => {
+    const materialCost = Number(item.cost || 0);
 
-      const { error: materialUpdateError } = await updateMaterialById(item.id, {
-        status: "已售出",
-        sale_price: materialCost,
-        sale_date: today,
-      });
+    const { error } = await updateMaterialById(item.id, {
+      status: "已售出",
+      sale_price: materialCost,
+      sale_date: today,
+    });
 
-      if (materialUpdateError) {
-        console.error("更新包炉消耗材料失败", materialUpdateError, item);
-        showToast(`更新包炉材料失败：${materialUpdateError.message}`, "error");
-        return;
-      }
-    }
+    return {
+      item,
+      error,
+    };
+  })
+);
 
-    const { data: materialData, error: materialReloadError } =
-      await fetchMaterials(currentUser.id);
+const failedMaterialUpdate = materialUpdateResults.find((result) => result.error);
 
-    if (materialReloadError) {
-      console.error("刷新材料失败", materialReloadError);
-      showToast(`刷新材料失败：${materialReloadError.message}`, "error");
-      return;
-    }
+if (failedMaterialUpdate) {
+  console.error("更新包炉消耗材料失败", failedMaterialUpdate.error, failedMaterialUpdate.item);
+  showToast(`更新包炉材料失败：${failedMaterialUpdate.error.message}`, "error");
+  return;
+}
 
-    const { data: contractData, error: contractReloadError } =
-      await fetchContracts(currentUser.id);
+setMaterials((prev) =>
+  prev.map((item) => {
+    if (!packageForm.selectedIds.includes(item.id)) return item;
 
-    if (contractReloadError) {
-      console.error("刷新汰换记录失败", contractReloadError);
-      showToast(`刷新汰换记录失败：${contractReloadError.message}`, "error");
-      return;
-    }
+    const materialCost = Number(item.cost || 0);
 
-    setMaterials(materialData || []);
-    setContracts(contractData || []);
+    return {
+      ...item,
+      status: "已售出",
+      sale_price: materialCost,
+      salePrice: materialCost,
+      sale_date: today,
+      saleDate: today,
+    };
+  })
+);
+
+if (insertedContract) {
+  const normalizedInsertedContract = {
+    ...insertedContract,
+    contractName:
+      insertedContract.contractName ?? insertedContract.contract_name,
+    outputName:
+      insertedContract.outputName ?? insertedContract.output_name,
+    outputWearLevel:
+      insertedContract.outputWearLevel ?? insertedContract.output_wear_level,
+    outputWearRange:
+      insertedContract.outputWearRange ?? insertedContract.output_wear_range,
+    outputCustomWear:
+      insertedContract.outputCustomWear ?? insertedContract.output_custom_wear,
+    refPrice: insertedContract.refPrice ?? insertedContract.ref_price,
+    furnaceFee: insertedContract.furnaceFee ?? insertedContract.furnace_fee,
+    salePrice: insertedContract.salePrice ?? insertedContract.sale_price,
+    saleDate: insertedContract.saleDate ?? insertedContract.sale_date,
+  };
+
+  setContracts((prev) => [normalizedInsertedContract, ...prev]);
+}
 
     setPackageForm((prev) => ({
       ...prev,
@@ -1427,51 +1594,54 @@ async function saveInventoryEdits() {
       return;
     }
 
-    for (const [rowKey, patch] of entries) {
-      const rawId = patch.rawId;
-      const isContract = patch.isContract;
+    const updateResults = await Promise.all(
+      entries.map(async ([rowKey, patch]) => {
+        const rawId = patch.rawId;
+        const isContract = patch.isContract;
 
-      const salePrice =
-        patch.salePrice === "" ||
-        patch.salePrice === null ||
-        patch.salePrice === undefined
-          ? null
-          : Number(patch.salePrice);
+        const salePrice =
+          patch.salePrice === "" ||
+          patch.salePrice === null ||
+          patch.salePrice === undefined
+            ? null
+            : Number(patch.salePrice);
 
-      const saleDate =
-        patch.saleDate === "" ||
-        patch.saleDate === null ||
-        patch.saleDate === undefined
-          ? null
-          : patch.saleDate;
+        const saleDate =
+          patch.saleDate === "" ||
+          patch.saleDate === null ||
+          patch.saleDate === undefined
+            ? null
+            : patch.saleDate;
 
-      const status =
-        patch.status ?? (salePrice === null ? "库存中" : "已售出");
+        const status =
+          patch.status ?? (salePrice === null ? "库存中" : "已售出");
 
-      if (isContract) {
-        const { error } = await updateContractById(rawId, {
-          ...(patch.name !== undefined ? { output_name: patch.name } : {}),
-          ...(patch.wearLevel !== undefined
-            ? { output_wear_level: patch.wearLevel }
-            : {}),
-          ...(patch.wearRange !== undefined
-            ? { output_wear_range: patch.wearRange }
-            : {}),
-          ...(patch.salePrice !== undefined ? { sale_price: salePrice } : {}),
-          ...(patch.status !== undefined || patch.salePrice !== undefined
-            ? { status }
-            : {}),
-          ...(patch.saleDate !== undefined || patch.salePrice !== undefined
-            ? { sale_date: saleDate }
-            : {}),
-        });
+        if (isContract) {
+          const { error } = await updateContractById(rawId, {
+            ...(patch.name !== undefined ? { output_name: patch.name } : {}),
+            ...(patch.wearLevel !== undefined
+              ? { output_wear_level: patch.wearLevel }
+              : {}),
+            ...(patch.wearRange !== undefined
+              ? { output_wear_range: patch.wearRange }
+              : {}),
+            ...(patch.salePrice !== undefined ? { sale_price: salePrice } : {}),
+            ...(patch.status !== undefined || patch.salePrice !== undefined
+              ? { status }
+              : {}),
+            ...(patch.saleDate !== undefined || patch.salePrice !== undefined
+              ? { sale_date: saleDate }
+              : {}),
+          });
 
-        if (error) {
-          console.error("更新汰换产物失败", error, rowKey, patch);
-          showToast(`更新汰换产物失败：${error.message}`, "error");
-          return;
+          return {
+            rowKey,
+            patch,
+            isContract: true,
+            error,
+          };
         }
-      } else {
+
         const { error } = await updateMaterialById(rawId, {
           ...(patch.platform !== undefined ? { platform: patch.platform } : {}),
           ...(patch.name !== undefined ? { name: patch.name } : {}),
@@ -1490,35 +1660,26 @@ async function saveInventoryEdits() {
             : {}),
         });
 
-        if (error) {
-          console.error("更新材料失败", error, rowKey, patch);
-          showToast(`更新材料失败：${error.message}`, "error");
-          return;
-        }
+        return {
+          rowKey,
+          patch,
+          isContract: false,
+          error,
+        };
+      })
+    );
+
+    const failedUpdate = updateResults.find((result) => result.error);
+
+    if (failedUpdate) {
+      if (failedUpdate.isContract) {
+        console.error("更新汰换产物失败", failedUpdate.error, failedUpdate.rowKey, failedUpdate.patch);
+        showToast(`更新汰换产物失败：${failedUpdate.error.message}`, "error");
+      } else {
+        console.error("更新材料失败", failedUpdate.error, failedUpdate.rowKey, failedUpdate.patch);
+        showToast(`更新材料失败：${failedUpdate.error.message}`, "error");
       }
-    }
-
-    if (currentUser?.id) {
-      const { data: materialData, error: materialReloadError } =
-        await fetchMaterials(currentUser.id);
-
-      if (materialReloadError) {
-        console.error("刷新材料失败", materialReloadError);
-        showToast(`刷新材料失败：${materialReloadError.message}`, "error");
-        return;
-      }
-
-      const { data: contractData, error: contractReloadError } =
-        await fetchContracts(currentUser.id);
-
-      if (contractReloadError) {
-        console.error("刷新汰换记录失败", contractReloadError);
-        showToast(`刷新汰换记录失败：${contractReloadError.message}`, "error");
-        return;
-      }
-
-      setMaterials(materialData || []);
-      setContracts(contractData || []);
+      return;
     }
 
     setInventoryEdits({});
@@ -1540,7 +1701,7 @@ async function saveInventoryEdits() {
     setSelectedIds((prev) => checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id));
   };
 
-  const selectAllVisible = () => setSelectedIds(filteredInventory.map((item) => item.id));
+const selectAllVisible = () => setSelectedIds(visibleInventory.map((item) => item.id));
   const clearSelected = () => setSelectedIds([]);
 
 const deleteSelected = async () => {
@@ -1583,24 +1744,16 @@ const deleteSelected = async () => {
       }
     }
 
-    if (currentUser?.id) {
-      const { data: materialData, error: materialReloadError } =
-        await fetchMaterials(currentUser.id);
+    if (materialIds.length) {
+      setMaterials((prev) =>
+        prev.filter((item) => !materialIds.includes(Number(item.id)))
+      );
+    }
 
-      if (materialReloadError) {
-        console.error("刷新材料失败", materialReloadError);
-      } else {
-        setMaterials(materialData || []);
-      }
-
-      const { data: contractData, error: contractReloadError } =
-        await fetchContracts(currentUser.id);
-
-      if (contractReloadError) {
-        console.error("刷新汰换记录失败", contractReloadError);
-      } else {
-        setContracts(contractData || []);
-      }
+    if (contractIds.length) {
+      setContracts((prev) =>
+        prev.filter((item) => !contractIds.includes(Number(item.id)))
+      );
     }
 
     setSelectedIds([]);
@@ -1609,10 +1762,6 @@ const deleteSelected = async () => {
     setIsDeletingSelected(false);
   }
 };
-
-  const addInventoryItem = () => {
-    setMaterials((prev) => [{ id: Date.now(), date: selectedDailyDate || "2026-03-10", platform: "BUFF", name: "", wearLevel: "久经沙场", wearRange: "0.15 - 0.18", customWear: "", cost: 0, salePrice: "", status: "库存中", mode: "single" }, ...prev]);
-  };
 
 
 
@@ -1793,7 +1942,12 @@ const deleteSelected = async () => {
 />
        </div>
 
-        <Tabs defaultValue="materials" className="space-y-6" onValueChange={() => { setEditMode(false); setSelectedIds([]); }}>
+        <Tabs defaultValue="materials" className="space-y-6" onValueChange={() => {
+  setEditMode(false);
+  setSelectedIds([]);
+  setShowAllEcoMaterials(false);
+  setShowAllPackageMaterials(false);
+}}>
           <TabsList className="grid w-full grid-cols-4 rounded-2xl bg-white p-1 shadow-sm">
  <TabsTrigger value="materials" className="rounded-xl">材料登记</TabsTrigger>
 <TabsTrigger value="inventory" className="rounded-xl">库存管理</TabsTrigger>
@@ -1966,20 +2120,32 @@ const deleteSelected = async () => {
 
 <div className="w-full md:w-auto">
   {!editMode && (
-    <div className="flex justify-end">
+    <div className="flex justify-end gap-2">
+      {filteredInventory.length > 20 && (
+        <Button
+          type="button"
+          variant="outline"
+          className="rounded-2xl"
+          onClick={() => setShowAllInventory((prev) => !prev)}
+        >
+          {showAllInventory ? "收起 ↑" : "查看全部 ↓"}
+        </Button>
+      )}
+
       <Button
         type="button"
         variant="outline"
         className="rounded-2xl"
         onClick={() => {
-          if (isReadonlyMode) {
-            showToast("会员已过期，当前为只读模式", "error");
-            return;
-          }
-          setEditMode(true);
-          setSelectedIds([]);
-          setInventoryEdits({});
-        }}
+  if (isReadonlyMode) {
+    showToast("会员已过期，当前为只读模式", "error");
+    return;
+  }
+  setShowAllInventory(false);
+  setEditMode(true);
+  setSelectedIds([]);
+  setInventoryEdits({});
+}}
       >
         <Pencil className="mr-2 h-4 w-4" />
         编辑总开关
@@ -2053,13 +2219,11 @@ const deleteSelected = async () => {
   <div className="space-y-1.5">
     <Label className="text-xs font-medium text-slate-500">名称</Label>
     <Input
-      placeholder="搜索名称关键词"
-      value={inventoryFilters.name ?? ""}
-      onChange={(e) =>
-        setInventoryFilters({ ...inventoryFilters, name: e.target.value })
-      }
-      className="h-10 rounded-xl border-slate-200 bg-white text-sm"
-    />
+  placeholder="搜索名称关键词"
+  value={inventoryNameInput}
+  onChange={(e) => setInventoryNameInput(e.target.value)}
+  className="h-10 rounded-xl border-slate-200 bg-white text-sm"
+/>
   </div>
 
   <div className="space-y-1.5">
@@ -2127,12 +2291,20 @@ const deleteSelected = async () => {
 </div>
 </div>
 
-      {editMode && (
-        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          已选 {selectedRows.length} 项 ｜ 求和 {money(selectedSum)} ｜ 平均{" "}
-          {money(selectedAvg)}
-        </div>
-      )}
+      <>
+  {filteredInventory.length > 20 && !showAllInventory && (
+    <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+      当前只展示前 20 条数据。可点击“查看全部”，或先筛选后再编辑。
+    </div>
+  )}
+
+  {editMode && (
+  <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+    已选 {selectedRows.length} 项 ｜ 求和 {money(selectedSum)} ｜ 平均{" "}
+    {money(selectedAvg)} ｜ 请先勾选需要修改的行，再进行编辑
+  </div>
+)}
+</>
 
       <Table>
         <TableHeader>
@@ -2152,7 +2324,7 @@ const deleteSelected = async () => {
         </TableHeader>
 
         <TableBody>
-          {filteredInventory.map((item) => (
+          {visibleInventory.map((item) => (
             <TableRow key={item.id}>
               {editMode && (
                 <TableCell>
@@ -2171,113 +2343,113 @@ const deleteSelected = async () => {
               </TableCell>
 
               <TableCell>
-                {editMode && !item.isContract ? (
-                  <Select
-                    value={item.platform}
-                    onValueChange={(value) =>
-                      updateInventoryField(item, "platform", value)
-                    }
-                  >
-                    <SelectTrigger className="w-[120px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {platformOptions.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {p}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  item.platform
-                )}
+                {isRowEditable(item.id) && !item.isContract ? (
+  <Select
+    value={item.platform}
+    onValueChange={(value) =>
+      updateInventoryField(item, "platform", value)
+    }
+  >
+    <SelectTrigger className="w-[120px]">
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent>
+      {platformOptions.map((p) => (
+        <SelectItem key={p} value={p}>
+          {p}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+) : (
+  item.platform
+)}
               </TableCell>
 
               <TableCell>
-                {editMode ? (
-                  <Input
-                    value={item.name}
-                    onChange={(e) =>
-                      updateInventoryField(item, "name", e.target.value)
-                    }
-                  />
-                ) : (
-                  item.name
-                )}
+                {isRowEditable(item.id) ? (
+  <Input
+    value={item.name}
+    onChange={(e) =>
+      updateInventoryField(item, "name", e.target.value)
+    }
+  />
+) : (
+  item.name
+)}
               </TableCell>
 
               <TableCell>
-                {editMode ? (
-                  <Select
-                    value={item.wearLevel}
-                    onValueChange={(value) =>
-                      updateInventoryField(item, "wearLevel", value)
-                    }
-                  >
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {wearLevelOptions.map((level) => (
-                        <SelectItem key={level} value={level}>
-                          {level}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  item.wearLevel
-                )}
+                {isRowEditable(item.id) ? (
+  <Select
+    value={item.wearLevel}
+    onValueChange={(value) =>
+      updateInventoryField(item, "wearLevel", value)
+    }
+  >
+    <SelectTrigger className="w-[140px]">
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent>
+      {wearLevelOptions.map((level) => (
+        <SelectItem key={level} value={level}>
+          {level}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+) : (
+  item.wearLevel
+)}
               </TableCell>
 
               <TableCell>
-                {editMode ? (
-                  <Select
-                    value={item.wearRange}
-                    onValueChange={(value) =>
-                      updateInventoryField(item, "wearRange", value)
-                    }
-                  >
-                    <SelectTrigger className="w-[150px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(wearRanges[item.wearLevel] || [item.wearRange]).map(
-                        (range) => (
-                          <SelectItem key={range} value={range}>
-                            {range}
-                          </SelectItem>
-                        )
-                      )}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  item.wearRange
-                )}
+                {isRowEditable(item.id) ? (
+  <Select
+    value={item.wearRange}
+    onValueChange={(value) =>
+      updateInventoryField(item, "wearRange", value)
+    }
+  >
+    <SelectTrigger className="w-[150px]">
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent>
+      {(wearRanges[item.wearLevel] || [item.wearRange]).map(
+        (range) => (
+          <SelectItem key={range} value={range}>
+            {range}
+          </SelectItem>
+        )
+      )}
+    </SelectContent>
+  </Select>
+) : (
+  item.wearRange
+)}
               </TableCell>
 
               <TableCell>{money(item.cost)}</TableCell>
 
               <TableCell>
-                {editMode ? (
-                  <Input
-  type="number"
-  value={item.salePrice ?? item.sale_price ?? ""}
-  onWheel={(e) => {
-    e.currentTarget.blur();
-  }}
-  onChange={(e) =>
-    updateInventoryField(item, "salePrice", e.target.value)
-  }
-/>
-                ) : item.salePrice === "" ||
-                  item.salePrice === null ||
-                  item.salePrice === undefined ? (
-                  "-"
-                ) : (
-                  money(item.salePrice)
-                )}
+                {isRowEditable(item.id) ? (
+  <Input
+    type="number"
+    value={item.salePrice ?? item.sale_price ?? ""}
+    onWheel={(e) => {
+      e.currentTarget.blur();
+    }}
+    onChange={(e) =>
+      updateInventoryField(item, "salePrice", e.target.value)
+    }
+  />
+) : item.salePrice === "" ||
+  item.salePrice === null ||
+  item.salePrice === undefined ? (
+  "-"
+) : (
+  money(item.salePrice)
+)}
               </TableCell>
 
               <TableCell>
@@ -2293,17 +2465,17 @@ const deleteSelected = async () => {
 </TableCell>
 
               <TableCell>
-                {editMode ? (
-                  <Input
-                    type="date"
-                    value={item.saleDate ?? item.sale_date ?? ""}
-                    onChange={(e) =>
-                      updateInventoryField(item, "saleDate", e.target.value)
-                    }
-                  />
-                ) : (
-                  item.saleDate ?? item.sale_date ?? "-"
-                )}
+                {isRowEditable(item.id) ? (
+  <Input
+    type="date"
+    value={item.saleDate ?? item.sale_date ?? ""}
+    onChange={(e) =>
+      updateInventoryField(item, "saleDate", e.target.value)
+    }
+  />
+) : (
+  item.saleDate ?? item.sale_date ?? "-"
+)}
               </TableCell>
 
               <TableCell>
@@ -2341,7 +2513,10 @@ const deleteSelected = async () => {
     type="button"
     variant={exchangeMode === "ECO合炉" ? "default" : "ghost"}
     className="rounded-xl"
-    onClick={() => setExchangeMode("ECO合炉")}
+   onClick={() => {
+  setShowAllEcoMaterials(false);
+  setExchangeMode("ECO合炉");
+}}
   >
     ECO合炉
   </Button>
@@ -2349,7 +2524,10 @@ const deleteSelected = async () => {
     type="button"
     variant={exchangeMode === "包炉" ? "default" : "ghost"}
     className="rounded-xl"
-    onClick={() => setExchangeMode("包炉")}
+   onClick={() => {
+  setShowAllPackageMaterials(false);
+  setExchangeMode("包炉");
+}}
   >
     包炉
   </Button>
@@ -2403,13 +2581,11 @@ const deleteSelected = async () => {
     <div className="space-y-1">
       <Label className="text-xs text-slate-500">名称筛选</Label>
       <Input
-        placeholder="输入名称关键词"
-        value={ecoFilters.name}
-        onChange={(e) =>
-          setEcoFilters({ ...ecoFilters, name: e.target.value })
-        }
-        className="h-9 rounded-xl"
-      />
+  placeholder="输入名称关键词"
+  value={ecoNameInput}
+  onChange={(e) => setEcoNameInput(e.target.value)}
+  className="h-9 rounded-xl"
+/>
     </div>
 
     <div className="space-y-1">
@@ -2434,74 +2610,98 @@ const deleteSelected = async () => {
     </div>
   </div>
 
-  <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-    已选 {contractForm.selectedIds.length} 个材料，最多 10 个。
-  </div>
+ <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+  <span>已选 {contractForm.selectedIds.length} 个材料，最多 10 个。</span>
 
-<div className="max-h-80 space-y-2 overflow-auto rounded-2xl border p-3">
-  {filteredEcoMaterials.map((item) => {
-    const active = contractForm.selectedIds.includes(item.id);
-    const wearLevel = item.wearLevel ?? item.wear_level;
-    const wearRange = item.wearRange ?? item.wear_range;
-    const customWear = item.customWear ?? item.custom_wear;
-    const materialSalePrice =
-      contractForm.materialSalePrices?.[item.id] ?? "";
-
-    return (
-      <div
-        key={item.id}
-        className={`rounded-xl border px-3 py-3 ${
-          active ? "bg-slate-900 text-white" : "bg-white"
-        }`}
-      >
-        <button
-          type="button"
-          className="flex w-full items-center justify-between text-left"
-          onClick={() => toggleEcoMaterial(item.id)}
-        >
-          <div className="min-w-0">
-            <div className="font-medium">{item.name}</div>
-            <div className={`text-sm ${active ? "text-slate-300" : "text-slate-500"}`}>
-              {[
-                item.date,
-                item.platform,
-                wearLevel,
-                wearRange === "自定义" ? customWear || "自定义" : wearRange,
-              ]
-                .filter(Boolean)
-                .join(" • ")}
-            </div>
-            <div className={`mt-1 text-xs ${active ? "text-slate-300" : "text-slate-500"}`}>
-              成本：{money(item.cost)}
-            </div>
-          </div>
-          <div className="shrink-0 pl-3 font-semibold">
-            {active ? "已选" : "选择"}
-          </div>
-        </button>
-
-        {active && (
-          <div className="mt-3">
-            <Label className={active ? "text-slate-200" : ""}>材料售价</Label>
-            <Input
-  type="number"
-  placeholder="请输入这条材料的售价"
-  value={materialSalePrice}
-  onClick={(e) => e.stopPropagation()}
-  onWheel={(e) => {
-    e.currentTarget.blur();
-  }}
-  onChange={(e) =>
-    updateEcoMaterialSalePrice(item.id, e.target.value)
-  }
-  className="mt-2 bg-white text-slate-900"
-/>
-          </div>
-        )}
-      </div>
-    );
-  })}
+  {filteredEcoMaterials.length > 10 && (
+    <button
+      type="button"
+      onClick={() => setShowAllEcoMaterials((prev) => !prev)}
+      className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:bg-slate-100"
+    >
+      {showAllEcoMaterials ? "收起 ↑" : "查看全部 ↓"}
+    </button>
+  )}
 </div>
+
+<>
+  {filteredEcoMaterials.length > 10 && !showAllEcoMaterials && (
+    <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+      当前只展示前 10 条材料，可点击“查看全部”，或继续筛选后再选材。
+    </div>
+  )}
+
+{!shouldShowEcoMaterialList ? (
+  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+    请先按日期、名称或平台筛选后，再选择材料。
+  </div>
+) : (
+  <div className="max-h-80 space-y-2 overflow-auto rounded-2xl border p-3">
+    {filteredEcoMaterials.map((item) => {
+      const active = contractForm.selectedIds.includes(item.id);
+      const wearLevel = item.wearLevel ?? item.wear_level;
+      const wearRange = item.wearRange ?? item.wear_range;
+      const customWear = item.customWear ?? item.custom_wear;
+      const materialSalePrice =
+        contractForm.materialSalePrices?.[item.id] ?? "";
+
+      return (
+        <div
+          key={item.id}
+          className={`rounded-xl border px-3 py-3 ${
+            active ? "bg-slate-900 text-white" : "bg-white"
+          }`}
+        >
+          <button
+            type="button"
+            className="flex w-full items-center justify-between text-left"
+            onClick={() => toggleEcoMaterial(item.id)}
+          >
+            <div className="min-w-0">
+              <div className="font-medium">{item.name}</div>
+              <div className={`text-sm ${active ? "text-slate-300" : "text-slate-500"}`}>
+                {[
+                  item.date,
+                  item.platform,
+                  wearLevel,
+                  wearRange === "自定义" ? customWear || "自定义" : wearRange,
+                ]
+                  .filter(Boolean)
+                  .join(" • ")}
+              </div>
+              <div className={`mt-1 text-xs ${active ? "text-slate-300" : "text-slate-500"}`}>
+                成本：{money(item.cost)}
+              </div>
+            </div>
+            <div className="shrink-0 pl-3 font-semibold">
+              {active ? "已选" : "选择"}
+            </div>
+          </button>
+
+          {active && (
+            <div className="mt-3">
+              <Label className={active ? "text-slate-200" : ""}>材料售价</Label>
+              <Input
+                type="number"
+                placeholder="请输入这条材料的售价"
+                value={materialSalePrice}
+                onClick={(e) => e.stopPropagation()}
+                onWheel={(e) => {
+                  e.currentTarget.blur();
+                }}
+                onChange={(e) =>
+                  updateEcoMaterialSalePrice(item.id, e.target.value)
+                }
+                className="mt-2 bg-white text-slate-900"
+              />
+            </div>
+          )}
+        </div>
+      );
+    })}
+  </div>
+)}
+</>
 </div>
 
                       <InfoBox
@@ -2568,13 +2768,11 @@ const deleteSelected = async () => {
   <div className="space-y-1">
     <Label className="text-xs text-slate-500">名称筛选</Label>
     <Input
-      placeholder="输入名称关键词"
-      value={packageFilters.name}
-      onChange={(e) =>
-        setPackageFilters({ ...packageFilters, name: e.target.value })
-      }
-      className="h-9 rounded-xl"
-    />
+  placeholder="输入名称关键词"
+  value={packageNameInput}
+  onChange={(e) => setPackageNameInput(e.target.value)}
+  className="h-9 rounded-xl"
+/>
   </div>
 
   <div className="space-y-1">
@@ -2598,24 +2796,58 @@ const deleteSelected = async () => {
     </Select>
   </div>
 </div>
-                        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">已选 {packageForm.selectedIds.length} 个材料，只允许 5 个或 10 个。</div>
-                        <div className="max-h-64 space-y-2 overflow-auto rounded-2xl border p-3">
-                          {filteredPackageMaterials.map((item) => {
-                            const active = packageForm.selectedIds.includes(item.id);
-                            return (
-                              <button key={item.id} type="button" className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left ${active ? "bg-slate-900 text-white" : "bg-white"}`} onClick={() => togglePackageMaterial(item.id)}>
-                                <div>
-                                  <div className="font-medium">{item.name}</div>
-                                  <div className="text-sm text-slate-500">
-  {[item.platform, item.wearLevel, item.wearRange].filter(Boolean).join(" • ")}
+                       <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+  <span>已选 {packageForm.selectedIds.length} 个材料，只允许 5 个或 10 个。</span>
+
+  {filteredPackageMaterials.length > 10 && (
+    <button
+      type="button"
+      onClick={() => setShowAllPackageMaterials((prev) => !prev)}
+      className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:bg-slate-100"
+    >
+      {showAllPackageMaterials ? "收起 ↑" : "查看全部 ↓"}
+    </button>
+  )}
 </div>
-                                </div>
-                                <div>{money(item.cost)}</div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
+                     <>
+  {filteredPackageMaterials.length > 10 && !showAllPackageMaterials && (
+    <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+      当前只展示前 10 条材料，可点击“查看全部”，或继续筛选后再选材。
+    </div>
+  )}
+
+{!shouldShowPackageMaterialList ? (
+  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+    请先按日期、名称或平台筛选后，再选择材料。
+  </div>
+) : (
+  <div className="max-h-64 space-y-2 overflow-auto rounded-2xl border p-3">
+    {filteredPackageMaterials.map((item) => {
+      const active = packageForm.selectedIds.includes(item.id);
+      return (
+        <button
+          key={item.id}
+          type="button"
+          className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left ${
+            active ? "bg-slate-900 text-white" : "bg-white"
+          }`}
+          onClick={() => togglePackageMaterial(item.id)}
+        >
+          <div>
+            <div className="font-medium">{item.name}</div>
+            <div className="text-sm text-slate-500">
+              {[item.platform, item.wearLevel, item.wearRange].filter(Boolean).join(" • ")}
+            </div>
+          </div>
+          <div>{money(item.cost)}</div>
+        </button>
+      );
+    })}
+  </div>
+)}
+</>
+</div>
+
                       <NumberField label="产物售价（可后补）" placeholder="548" value={packageForm.salePrice} onChange={(value) => setPackageForm({ ...packageForm, salePrice: value })} />
                       <Button
   onClick={addPackageContract}
