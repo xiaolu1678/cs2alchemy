@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CS2炼金账本",
+  title: "美好的事情即将发生",
   description: "Designed by Zall",
 };
 

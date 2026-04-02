@@ -1887,7 +1887,7 @@ const deleteSelected = async () => {
 
         <div className="flex flex-col gap-3 rounded-3xl bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
   <div>
-    <h1 className="text-3xl font-bold tracking-tight text-slate-900">美好的事情即将发生</h1>
+    <h1 className="text-3xl font-bold tracking-tight text-slate-900">日进斗金v3.0</h1>
     <div className="mt-2 text-sm text-slate-500">
       当前用户：{currentUser?.email ? currentUser.email.split("@")[0] : "未登录"}
     </div>
@@ -2120,7 +2120,7 @@ const deleteSelected = async () => {
       </CardTitle>
     </div>
 
-<div className="w-full md:w-auto">
+<div className="w-full md:w-auto space-y-2">
   {!editMode && (
     <div className="flex justify-end gap-2">
       {filteredInventory.length > 20 && (
@@ -2139,15 +2139,14 @@ const deleteSelected = async () => {
         variant="outline"
         className="rounded-2xl"
         onClick={() => {
-  if (isReadonlyMode) {
-    showToast("会员已过期，当前为只读模式", "error");
-    return;
-  }
-  setShowAllInventory(false);
-  setEditMode(true);
-  setSelectedIds([]);
-  setInventoryEdits({});
-}}
+          if (isReadonlyMode) {
+            showToast("会员已过期，当前为只读模式", "error");
+            return;
+          }
+          setEditMode(true);
+          setSelectedIds([]);
+          setInventoryEdits({});
+        }}
       >
         <Pencil className="mr-2 h-4 w-4" />
         编辑总开关
@@ -2156,50 +2155,66 @@ const deleteSelected = async () => {
   )}
 
   {editMode && (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      <Button
-        type="button"
-        variant="outline"
-        className="rounded-2xl w-full"
-        onClick={selectAllVisible}
-      >
-        全选
-      </Button>
+    <div className="space-y-2">
+      {filteredInventory.length > 20 && (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-2xl"
+            onClick={() => setShowAllInventory((prev) => !prev)}
+          >
+            {showAllInventory ? "收起 ↑" : "查看全部 ↓"}
+          </Button>
+        </div>
+      )}
 
-      <Button
-        type="button"
-        variant="outline"
-        className="rounded-2xl w-full"
-        onClick={clearSelected}
-      >
-        全不选
-      </Button>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Button
+          type="button"
+          variant="outline"
+          className="rounded-2xl w-full"
+          onClick={selectAllVisible}
+        >
+          全选
+        </Button>
 
-      <Button
-  type="button"
-  variant="destructive"
-  className="rounded-2xl w-full"
-  disabled={isDeletingSelected}
-  onClick={deleteSelected}
->
-  <Trash2 className="mr-2 h-4 w-4" />
-  {isDeletingSelected ? "删除中..." : "删除"}
-</Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="rounded-2xl w-full"
+          onClick={clearSelected}
+        >
+          全不选
+        </Button>
 
-      <Button
-  type="button"
-  variant="default"
-  className="rounded-2xl w-full"
-  disabled={isSavingInventoryEdits}
-  onClick={async () => {
-    await saveInventoryEdits();
-  }}
->
-  {isSavingInventoryEdits ? "保存中..." : "✅完成编辑"}
-</Button>
+        <Button
+          type="button"
+          variant="destructive"
+          className="rounded-2xl w-full"
+          disabled={isDeletingSelected}
+          onClick={deleteSelected}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          {isDeletingSelected ? "删除中..." : "删除"}
+        </Button>
+
+        <Button
+          type="button"
+          variant="default"
+          className="rounded-2xl w-full"
+          disabled={isSavingInventoryEdits}
+          onClick={async () => {
+            await saveInventoryEdits();
+          }}
+        >
+          {isSavingInventoryEdits ? "保存中..." : "✅完成编辑"}
+        </Button>
+      </div>
     </div>
   )}
 </div>
+
   </div>
 </CardHeader>
 
@@ -2884,19 +2899,18 @@ const deleteSelected = async () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>日期</TableHead>
-                        <TableHead>类型</TableHead>
-                        <TableHead>合同名称</TableHead>
-                        <TableHead>产物名称</TableHead>
-                        <TableHead>参考价</TableHead>
-                        <TableHead>磨损等级</TableHead>
-                        <TableHead>磨损区间</TableHead>
-                        <TableHead>结果</TableHead>
-                        <TableHead>开炉费</TableHead>
-                        <TableHead>售价</TableHead>
-                        <TableHead>利润</TableHead>
-                        <TableHead>状态</TableHead>
-                      </TableRow>
+  <TableHead>日期</TableHead>
+  <TableHead>类型</TableHead>
+  <TableHead>合同名称</TableHead>
+  <TableHead>产物名称</TableHead>
+  <TableHead>磨损等级</TableHead>
+  <TableHead>磨损区间</TableHead>
+  <TableHead>结果</TableHead>
+  <TableHead>参考价</TableHead>
+  <TableHead>开炉费</TableHead>
+  <TableHead>售价</TableHead>
+  <TableHead>状态</TableHead>
+</TableRow>
                     </TableHeader>
                     <TableBody>
                      {visibleContracts.map((item) => {
@@ -2909,15 +2923,14 @@ const deleteSelected = async () => {
   const furnaceFee = item.furnaceFee ?? item.furnace_fee;
   const salePrice = item.salePrice ?? item.sale_price;
   const type = item.type ?? "ECO合炉";
-  const profit = salePrice ? Number(salePrice) - Number(refPrice || 0) : 0;
+
 
   return (
-                          <TableRow key={item.id}>
+    <TableRow key={item.id}>
   <TableCell>{item.date}</TableCell>
   <TableCell>{type}</TableCell>
   <TableCell>{contractName}</TableCell>
   <TableCell>{outputName}</TableCell>
-  <TableCell>{money(refPrice)}</TableCell>
   <TableCell>{outputWearLevel}</TableCell>
   <TableCell>
     {outputWearRange === "自定义"
@@ -2935,11 +2948,17 @@ const deleteSelected = async () => {
       {item.result}
     </Badge>
   </TableCell>
+  <TableCell>{money(refPrice)}</TableCell>
   <TableCell>{money(furnaceFee)}</TableCell>
   <TableCell>{salePrice ? money(salePrice) : "-"}</TableCell>
-  <TableCell>{money(profit)}</TableCell>
   <TableCell>
-    <Badge variant="secondary" className="rounded-full">
+    <Badge
+      className={
+        item.status === "已售出"
+          ? "rounded-full bg-slate-900 text-white hover:bg-slate-900"
+          : "rounded-full bg-amber-100 text-amber-800 hover:bg-amber-100"
+      }
+    >
       {item.status}
     </Badge>
   </TableCell>
