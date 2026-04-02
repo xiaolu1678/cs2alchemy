@@ -1131,19 +1131,13 @@ const addContract = async () => {
       return;
     }
 
-    if (!contractForm.selectedIds.length) {
-      showToast("请先选择参与合炉的材料", "error");
-      return;
-    }
+
 
     const selectedMaterials = materials.filter((item) =>
       contractForm.selectedIds.includes(item.id)
     );
 
-    if (!selectedMaterials.length) {
-      showToast("未找到被选中的材料", "error");
-      return;
-    }
+
 
     const missingMaterialSalePrice = selectedMaterials.some((item) => {
       const value = contractForm.materialSalePrices?.[item.id];
