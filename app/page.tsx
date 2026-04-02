@@ -826,6 +826,14 @@ const ecoCost = useMemo(() => {
     .filter((item) => contractForm.selectedIds.includes(item.id))
     .reduce((sum, item) => sum + Number(item.cost || 0), 0);
 }, [materials, contractForm.selectedIds]);
+const ecoProfit = useMemo(() => {
+  return materials
+    .filter((item) => contractForm.selectedIds.includes(item.id))
+    .reduce((sum, item) => {
+      const salePrice = Number(contractForm.materialSalePrices?.[item.id] || 0);
+      return sum + (salePrice - Number(item.cost || 0));
+    }, 0);
+}, [materials, contractForm.selectedIds, contractForm.materialSalePrices]);
 
 const filteredPackageMaterials = useMemo(() => {
   return inventoryOnlyMaterials.filter((item) => {
@@ -2540,96 +2548,87 @@ const deleteSelected = async () => {
                         <SuggestionList items={outputNameSuggestions} onPick={(name) => setContractForm({ ...contractForm, outputName: name })} />
                       </div>
                       <NumberField label="产物参考价" placeholder="520" value={contractForm.refPrice} onChange={(value) => setContractForm({ ...contractForm, refPrice: value })} />
-                        <div className="space-y-2">
-  <Label>本炉材料成本（仅展示）</Label>
-  <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
-    {money(ecoCost)}
-  </div>
+                        
+<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+  <SelectField
+    label="汰换结果"
+    value={contractForm.result}
+    options={["成功", "失败"]}
+    onChange={syncContractResult}
+  />
+  <NumberField
+    label="开炉费比例"
+    value={contractForm.result === "失败" ? "0" : contractForm.furnaceRatePercent}
+    onChange={(value) => setContractForm({ ...contractForm, furnaceRatePercent: value })}
+    disabled={contractForm.result === "失败"}
+  />
+  <SelectField
+    label="产物磨损等级"
+    value={contractForm.outputWearLevel}
+    options={wearLevelOptions}
+    onChange={(value) =>
+      setContractForm({
+        ...contractForm,
+        outputWearLevel: value,
+        outputWearRange: wearRanges[value][0],
+        outputCustomWear: "",
+      })
+    }
+  />
+  <SelectField
+    label="产物磨损区间"
+    value={contractForm.outputWearRange}
+    options={currentContractWearRanges}
+    onChange={(value) =>
+      setContractForm({
+        ...contractForm,
+        outputWearRange: value,
+        outputCustomWear: value === "自定义" ? contractForm.outputCustomWear : "",
+      })
+    }
+  />
 </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <SelectField label="汰换结果" value={contractForm.result} options={["成功", "失败"]} onChange={syncContractResult} />
-                        <NumberField label="开炉费比例" value={contractForm.result === "失败" ? "0" : contractForm.furnaceRatePercent} onChange={(value) => setContractForm({ ...contractForm, furnaceRatePercent: value })} disabled={contractForm.result === "失败"} />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <SelectField label="产物磨损等级" value={contractForm.outputWearLevel} options={wearLevelOptions} onChange={(value) => setContractForm({ ...contractForm, outputWearLevel: value, outputWearRange: wearRanges[value][0], outputCustomWear: "" })} />
-                        <SelectField label="产物磨损区间" value={contractForm.outputWearRange} options={currentContractWearRanges} onChange={(value) => setContractForm({ ...contractForm, outputWearRange: value, outputCustomWear: value === "自定义" ? contractForm.outputCustomWear : "" })} />
-                      </div>
                       {contractForm.outputWearRange === "自定义" && <TextField label="自定义产物磨损 / 区间" placeholder="例如：0.163 或 0.15 - 0.17" value={contractForm.outputCustomWear} onChange={(value) => setContractForm({ ...contractForm, outputCustomWear: value })} />}
                       
 <div className="space-y-3 rounded-2xl border p-4">
   <div className="text-sm font-medium text-slate-700">ECO 合炉选材</div>
 
-  <div className="grid gap-2 md:grid-cols-3">
-    <div className="space-y-1">
-      <Label className="text-xs text-slate-500">日期筛选</Label>
-      <Input
-        type="date"
-        value={ecoFilters.date}
-        onChange={(e) =>
-          setEcoFilters({ ...ecoFilters, date: e.target.value })
-        }
-        className="h-9 rounded-xl"
-      />
-    </div>
-
-    <div className="space-y-1">
-      <Label className="text-xs text-slate-500">名称筛选</Label>
-      <Input
-  placeholder="输入名称关键词"
-  value={ecoNameInput}
-  onChange={(e) => setEcoNameInput(e.target.value)}
-  className="h-9 rounded-xl"
-/>
-    </div>
-
-    <div className="space-y-1">
-      <Label className="text-xs text-slate-500">平台筛选</Label>
-      <Select
-        value={ecoFilters.platform}
-        onValueChange={(value) =>
-          setEcoFilters({ ...ecoFilters, platform: value })
-        }
-      >
-        <SelectTrigger className="h-9 rounded-xl">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {["全部", ...platformOptions].map((option) => (
-            <SelectItem key={option} value={option}>
-              {option}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+  <div className="grid gap-3 md:grid-cols-2">
+  <div className="space-y-1">
+    <Label className="text-xs text-slate-500">日期筛选</Label>
+    <Input
+      type="date"
+      value={ecoFilters.date}
+      onChange={(e) =>
+        setEcoFilters({ ...ecoFilters, date: e.target.value })
+      }
+      className="h-9 rounded-xl"
+    />
   </div>
+
+  <div className="space-y-1">
+    <Label className="text-xs text-slate-500">名称筛选</Label>
+    <Input
+      placeholder="输入名称关键词"
+      value={ecoFilters.name}
+      onChange={(e) =>
+        setEcoFilters({ ...ecoFilters, name: e.target.value })
+      }
+      className="h-9 rounded-xl"
+    />
+  </div>
+</div>
 
  <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
   <span>已选 {contractForm.selectedIds.length} 个材料，最多 10 个。</span>
 
-  {filteredEcoMaterials.length > 10 && (
-    <button
-      type="button"
-      onClick={() => setShowAllEcoMaterials((prev) => !prev)}
-      className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:bg-slate-100"
-    >
-      {showAllEcoMaterials ? "收起 ↑" : "查看全部 ↓"}
-    </button>
-  )}
+
 </div>
 
 <>
-  {filteredEcoMaterials.length > 10 && !showAllEcoMaterials && (
-    <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-      当前只展示前 10 条材料，可点击“查看全部”，或继续筛选后再选材。
-    </div>
-  )}
 
-{!shouldShowEcoMaterialList ? (
-  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-    请先按日期、名称或平台筛选后，再选择材料。
-  </div>
-) : (
+
+{!shouldShowEcoMaterialList ? null : (
   <div className="max-h-80 space-y-2 overflow-auto rounded-2xl border p-3">
     {filteredEcoMaterials.map((item) => {
       const active = contractForm.selectedIds.includes(item.id);
@@ -2642,9 +2641,11 @@ const deleteSelected = async () => {
       return (
         <div
           key={item.id}
-          className={`rounded-xl border px-3 py-3 ${
-            active ? "bg-slate-900 text-white" : "bg-white"
-          }`}
+         className={`rounded-xl border px-3 py-3 ${
+  active
+    ? "border-green-200 bg-green-50 text-slate-900"
+    : "bg-white"
+}`}
         >
           <button
             type="button"
@@ -2653,7 +2654,7 @@ const deleteSelected = async () => {
           >
             <div className="min-w-0">
               <div className="font-medium">{item.name}</div>
-              <div className={`text-sm ${active ? "text-slate-300" : "text-slate-500"}`}>
+              <div className={`text-sm ${active ? "text-green-700" : "text-slate-500"}`}>
                 {[
                   item.date,
                   item.platform,
@@ -2663,7 +2664,7 @@ const deleteSelected = async () => {
                   .filter(Boolean)
                   .join(" • ")}
               </div>
-              <div className={`mt-1 text-xs ${active ? "text-slate-300" : "text-slate-500"}`}>
+              <div className={`mt-1 text-xs ${active ? "text-green-700" : "text-slate-500"}`}>
                 成本：{money(item.cost)}
               </div>
             </div>
@@ -2674,7 +2675,7 @@ const deleteSelected = async () => {
 
           {active && (
             <div className="mt-3">
-              <Label className={active ? "text-slate-200" : ""}>材料售价</Label>
+              <Label className={active ? "text-green-800" : ""}>材料售价</Label>
               <Input
                 type="number"
                 placeholder="请输入这条材料的售价"
@@ -2698,7 +2699,19 @@ const deleteSelected = async () => {
 </>
 </div>
 
-                      <InfoBox
+<div className="space-y-2">
+  <Label>本炉材料统计</Label>
+  <div className="grid gap-3 md:grid-cols-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+    <div>
+      材料成本：<span className="font-semibold text-slate-900">{money(ecoCost)}</span>
+    </div>
+    <div>
+      材料利润：<span className="font-semibold text-slate-900">{money(ecoProfit)}</span>
+    </div>
+  </div>
+</div>
+
+<InfoBox
   label="开炉费收入"
   value={money(
     computeFurnaceFee(
@@ -2732,21 +2745,50 @@ const deleteSelected = async () => {
                         <Input placeholder="例如：AK-47 | 火蛇" value={packageForm.outputName} onChange={(e) => setPackageForm({ ...packageForm, outputName: e.target.value })} />
                         <SuggestionList items={packageOutputNameSuggestions} onPick={(name) => setPackageForm({ ...packageForm, outputName: name })} />
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <SelectField label="包炉结果" value={packageForm.result} options={["成功", "失败"]} onChange={(value) => setPackageForm({ ...packageForm, result: value })} />
-                        <div className="space-y-2">
-                          <Label>参考价（自动汇总）</Label>
-                          <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">{money(packageCost)}</div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <SelectField label="产物磨损等级" value={packageForm.outputWearLevel} options={wearLevelOptions} onChange={(value) => setPackageForm({ ...packageForm, outputWearLevel: value, outputWearRange: wearRanges[value][0], outputCustomWear: "" })} />
-                        <SelectField label="产物磨损区间" value={packageForm.outputWearRange} options={currentPackageWearRanges} onChange={(value) => setPackageForm({ ...packageForm, outputWearRange: value, outputCustomWear: value === "自定义" ? packageForm.outputCustomWear : "" })} />
-                      </div>
+                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+  <SelectField
+    label="包炉结果"
+    value={packageForm.result}
+    options={["成功", "失败"]}
+    onChange={(value) => setPackageForm({ ...packageForm, result: value })}
+  />
+  <div className="space-y-2">
+    <Label>参考价（自动汇总）</Label>
+    <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+      {money(packageCost)}
+    </div>
+  </div>
+  <SelectField
+    label="产物磨损等级"
+    value={packageForm.outputWearLevel}
+    options={wearLevelOptions}
+    onChange={(value) =>
+      setPackageForm({
+        ...packageForm,
+        outputWearLevel: value,
+        outputWearRange: wearRanges[value][0],
+        outputCustomWear: "",
+      })
+    }
+  />
+  <SelectField
+    label="产物磨损区间"
+    value={packageForm.outputWearRange}
+    options={currentPackageWearRanges}
+    onChange={(value) =>
+      setPackageForm({
+        ...packageForm,
+        outputWearRange: value,
+        outputCustomWear: value === "自定义" ? packageForm.outputCustomWear : "",
+      })
+    }
+  />
+</div>
                       {packageForm.outputWearRange === "自定义" && <TextField label="自定义产物磨损 / 区间" placeholder="例如：0.163 或 0.15 - 0.17" value={packageForm.outputCustomWear} onChange={(value) => setPackageForm({ ...packageForm, outputCustomWear: value })} />}
                       <div className="space-y-3 rounded-2xl border p-4">
                         <div className="text-sm font-medium text-slate-700">包炉选材</div>
-                        <div className="grid gap-2 md:grid-cols-3">
+                        
+<div className="grid gap-3 md:grid-cols-2">
   <div className="space-y-1">
     <Label className="text-xs text-slate-500">日期筛选</Label>
     <Input
@@ -2762,59 +2804,23 @@ const deleteSelected = async () => {
   <div className="space-y-1">
     <Label className="text-xs text-slate-500">名称筛选</Label>
     <Input
-  placeholder="输入名称关键词"
-  value={packageNameInput}
-  onChange={(e) => setPackageNameInput(e.target.value)}
-  className="h-9 rounded-xl"
-/>
-  </div>
-
-  <div className="space-y-1">
-    <Label className="text-xs text-slate-500">平台筛选</Label>
-    <Select
-      value={packageFilters.platform}
-      onValueChange={(value) =>
-        setPackageFilters({ ...packageFilters, platform: value })
+      placeholder="输入名称关键词"
+      value={packageFilters.name}
+      onChange={(e) =>
+        setPackageFilters({ ...packageFilters, name: e.target.value })
       }
-    >
-      <SelectTrigger className="h-9 rounded-xl">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {["全部", ...platformOptions].map((option) => (
-          <SelectItem key={option} value={option}>
-            {option}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      className="h-9 rounded-xl"
+    />
   </div>
 </div>
+
                        <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
   <span>已选 {packageForm.selectedIds.length} 个材料，只允许 5 个或 10 个。</span>
 
-  {filteredPackageMaterials.length > 10 && (
-    <button
-      type="button"
-      onClick={() => setShowAllPackageMaterials((prev) => !prev)}
-      className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:bg-slate-100"
-    >
-      {showAllPackageMaterials ? "收起 ↑" : "查看全部 ↓"}
-    </button>
-  )}
 </div>
                      <>
-  {filteredPackageMaterials.length > 10 && !showAllPackageMaterials && (
-    <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-      当前只展示前 10 条材料，可点击“查看全部”，或继续筛选后再选材。
-    </div>
-  )}
 
-{!shouldShowPackageMaterialList ? (
-  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-    请先按日期、名称或平台筛选后，再选择材料。
-  </div>
-) : (
+{!shouldShowPackageMaterialList ? null : (
   <div className="max-h-64 space-y-2 overflow-auto rounded-2xl border p-3">
     {filteredPackageMaterials.map((item) => {
       const active = packageForm.selectedIds.includes(item.id);
@@ -2823,8 +2829,10 @@ const deleteSelected = async () => {
           key={item.id}
           type="button"
           className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left ${
-            active ? "bg-slate-900 text-white" : "bg-white"
-          }`}
+  active
+    ? "border-green-200 bg-green-50 text-slate-900"
+    : "bg-white"
+}`}
           onClick={() => togglePackageMaterial(item.id)}
         >
           <div>

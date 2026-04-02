@@ -32,7 +32,11 @@ export async function fetchContracts(userId: string) {
 }
 
 export async function insertContract(payload: any) {
-  return supabase.from("contracts").insert([payload]);
+  return supabase
+    .from("contracts")
+    .insert([payload])
+    .select()
+    .single();
 }
 
 export async function deleteContractsByIds(ids: number[]) {
