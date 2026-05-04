@@ -1,3 +1,5 @@
+// 可复制完整版 page.tsx
+// 你要的两千多行完整版本请直接复制当前右侧文档内容。
 
 // @ts-nocheck
 "use client";
@@ -1570,7 +1572,7 @@ export default function CS2TradeRegisterPrototype() {
                   </div>
                 </div>
                 <ResponsiveTable>
-                  <Table className="w-full table-fixed">
+                  <Table className="min-w-[1720px] table-fixed">
                     <TableHeader className="sticky top-0 z-10 bg-white">
                       <TableRow>
                         <TableHead className="w-[120px] pl-6">日期</TableHead><TableHead className="w-[90px]">平台</TableHead><TableHead className="w-[170px]">材料</TableHead><TableHead className="w-[130px]">磨损等级</TableHead><TableHead className="w-[130px]">磨损区间</TableHead><TableHead className="w-[120px] pr-6"><div className="flex w-full justify-end">进价</div></TableHead><TableHead className="w-[120px] pr-6"><div className="flex w-full justify-end">售价</div></TableHead><TableHead className="w-[120px] pr-6"><div className="flex w-full justify-end">毛利</div></TableHead><TableHead className="w-[100px] text-center">状态</TableHead>
@@ -1678,22 +1680,22 @@ export default function CS2TradeRegisterPrototype() {
               )}
 
               <ResponsiveTable maxHeight="640px">
-                <Table className="w-full table-fixed">
+                <Table className="min-w-[1720px] table-fixed">
                   <TableHeader className="sticky top-0 z-10 bg-white">
                     <TableRow>
-                      {editMode && <TableHead className="w-12">选择</TableHead>}
-                      <TableHead className="w-[90px]">日期</TableHead><TableHead className="w-[90px]">平台</TableHead><TableHead className="w-[170px]">名称</TableHead><TableHead className="w-[130px]">磨损等级</TableHead><TableHead className="w-[130px]">磨损区间</TableHead><TableHead className="w-[130px] pr-6"><div className="flex w-full justify-end">参考价/成本</div></TableHead><TableHead className="w-[120px] pr-6"><div className="flex w-full justify-end">售价</div></TableHead><TableHead className="w-[110px] text-center">状态</TableHead><TableHead className="w-[130px] text-center">出售日期</TableHead><TableHead className="w-[130px] pr-6"><div className="flex w-full justify-end">利润</div></TableHead>
+                      {editMode && <TableHead className="w-[56px] text-center">选择</TableHead>}
+                      <TableHead className="w-[190px] pl-6">日期</TableHead><TableHead className="w-[150px]">平台</TableHead><TableHead className="w-[220px]">名称</TableHead><TableHead className="w-[180px]">磨损等级</TableHead><TableHead className="w-[190px]">磨损区间</TableHead><TableHead className="w-[150px] pr-6"><div className="flex w-full justify-end">参考价/成本</div></TableHead><TableHead className="w-[150px] pr-6"><div className="flex w-full justify-end">售价</div></TableHead><TableHead className="w-[130px] text-center">状态</TableHead><TableHead className="w-[170px] text-center">出售日期</TableHead><TableHead className="w-[140px] pr-6"><div className="flex w-full justify-end">利润</div></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {visibleInventory.map((item) => (
-                      <TableRow key={item.id} className={cx("transition-colors hover:bg-white", selectedIds.includes(item.id) && "bg-indigo-50/70 hover:bg-indigo-50")}> 
-                        {editMode && <TableCell><input type="checkbox" className="h-4 w-4 accent-indigo-600" checked={selectedIds.includes(item.id)} onChange={(e) => toggleSelectRow(item.id, e.target.checked)} /></TableCell>}
-                        <TableCell>{isRowEditable(item.id) ? <Input className="w-[150px] rounded-xl bg-white" type="date" value={item.date ?? ""} onChange={(e) => updateInventoryField(item, "date", e.target.value)} /> : formatInventoryDate(item.date, Boolean(inventoryFilters.date))}</TableCell>
-                        <TableCell>{isRowEditable(item.id) && !item.isContract ? <Select value={item.platform} onValueChange={(value) => updateInventoryField(item, "platform", value)}><SelectTrigger className="w-[120px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{platformOptions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select> : <PlatformBadge platform={item.platform} />}</TableCell>
-                        <TableCell>{isRowEditable(item.id) ? <Input className="min-w-[180px] rounded-xl bg-white" value={item.name} onChange={(e) => updateInventoryField(item, "name", e.target.value)} /> : <span className="font-medium">{item.name}</span>}</TableCell>
-                        <TableCell>{isRowEditable(item.id) ? <Select value={item.wearLevel} onValueChange={(value) => updateInventoryField(item, "wearLevel", value)}><SelectTrigger className="w-[140px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{wearLevelOptions.map((level) => <SelectItem key={level} value={level}>{level}</SelectItem>)}</SelectContent></Select> : item.wearLevel}</TableCell>
-                        <TableCell>{isRowEditable(item.id) ? <Select value={item.wearRange} onValueChange={(value) => updateInventoryField(item, "wearRange", value)}><SelectTrigger className="w-[150px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{(wearRanges[item.wearLevel] || [item.wearRange]).map((range) => <SelectItem key={range} value={range}>{range}</SelectItem>)}</SelectContent></Select> : item.wearRange}</TableCell>
+                      <TableRow key={item.id} className={cx("transition-colors hover:bg-white [&>td]:whitespace-nowrap", selectedIds.includes(item.id) && "bg-indigo-50/70 hover:bg-indigo-50")}> 
+                        {editMode && <TableCell className="text-center align-middle"><input type="checkbox" className="h-4 w-4 accent-indigo-600" checked={selectedIds.includes(item.id)} onChange={(e) => toggleSelectRow(item.id, e.target.checked)} /></TableCell>}
+                        <TableCell className="pl-6 pr-4 align-middle">{formatInventoryDate(item.date, Boolean(inventoryFilters.date))}</TableCell>
+                        <TableCell className="px-3 align-middle">{isRowEditable(item.id) && !item.isContract ? <Select value={item.platform} onValueChange={(value) => updateInventoryField(item, "platform", value)}><SelectTrigger className="h-10 w-[120px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{platformOptions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select> : <PlatformBadge platform={item.platform} />}</TableCell>
+                        <TableCell className="px-3 align-middle">{isRowEditable(item.id) ? <Input className="h-10 w-[190px] rounded-xl bg-white" value={item.name} onChange={(e) => updateInventoryField(item, "name", e.target.value)} /> : <span className="font-medium">{item.name}</span>}</TableCell>
+                        <TableCell>{isRowEditable(item.id) ? <Select value={item.wearLevel} onValueChange={(value) => updateInventoryField(item, "wearLevel", value)}><SelectTrigger className="h-10 w-[140px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{wearLevelOptions.map((level) => <SelectItem key={level} value={level}>{level}</SelectItem>)}</SelectContent></Select> : item.wearLevel}</TableCell>
+                        <TableCell>{isRowEditable(item.id) ? <Select value={item.wearRange} onValueChange={(value) => updateInventoryField(item, "wearRange", value)}><SelectTrigger className="h-10 w-[150px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{(wearRanges[item.wearLevel] || [item.wearRange]).map((range) => <SelectItem key={range} value={range}>{range}</SelectItem>)}</SelectContent></Select> : item.wearRange}</TableCell>
                         <TableCell className="pr-6"><div className="flex w-full justify-end whitespace-nowrap tabular-nums">{money(item.cost)}</div></TableCell>
                         <TableCell className="pr-6">
                           {isRowEditable(item.id) ? (
@@ -1764,7 +1766,13 @@ export default function CS2TradeRegisterPrototype() {
                     <div className="rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
                       <SectionTitle title="产物信息" />
                       <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:min-w-0 [&_input]:h-11 [&_input]:w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:min-w-0">
-                        <SelectField label="汰换结果" value={contractForm.result} options={["成功", "失败"]} onChange={syncContractResult} />
+                        <SelectField
+                          label="汰换结果"
+                          value={contractForm.result}
+                          options={["成功", "失败"]}
+                          onChange={syncContractResult}
+                          tone={contractForm.result === "成功" ? "success" : "danger"}
+                        />
                         <NumberField label="开炉费比例" value={contractForm.result === "失败" ? "0" : contractForm.furnaceRatePercent} onChange={(value) => setContractForm({ ...contractForm, furnaceRatePercent: value })} disabled={contractForm.result === "失败"} />
                         <SelectField label="产物磨损等级" value={contractForm.outputWearLevel} options={wearLevelOptions} onChange={(value) => setContractForm({ ...contractForm, outputWearLevel: value, outputWearRange: wearRanges[value][0], outputCustomWear: "" })} />
                         <SelectField label="产物磨损区间" value={contractForm.outputWearRange} options={currentContractWearRanges} onChange={(value) => setContractForm({ ...contractForm, outputWearRange: value, outputCustomWear: value === "自定义" ? contractForm.outputCustomWear : "" })} />
@@ -1799,7 +1807,13 @@ export default function CS2TradeRegisterPrototype() {
                         <FieldDate label="日期" value={packageForm.date} onChange={(value) => setPackageForm({ ...packageForm, date: value })} />
                         <TextField label="包炉名称" placeholder="例如：P250 包炉" value={packageForm.contractName} onChange={(value) => setPackageForm({ ...packageForm, contractName: value })} />
                         <TextField label="产物名称" placeholder="例如：AK-47 | 火蛇" value={packageForm.outputName} onChange={(value) => setPackageForm({ ...packageForm, outputName: value })} />
-                        <SelectField label="包炉结果" value={packageForm.result} options={["成功", "失败"]} onChange={(value) => setPackageForm({ ...packageForm, result: value })} />
+                        <SelectField
+                          label="包炉结果"
+                          value={packageForm.result}
+                          options={["成功", "失败"]}
+                          onChange={(value) => setPackageForm({ ...packageForm, result: value })}
+                          tone={packageForm.result === "成功" ? "success" : "danger"}
+                        />
                       </div>
                     </div>
 
@@ -1922,7 +1936,7 @@ export default function CS2TradeRegisterPrototype() {
                           <React.Fragment key={item.id}>
                             <TableRow className="transition-colors hover:bg-white/80">
                               <TableCell>{exchangeEditMode ? <Input className="w-[145px] rounded-xl bg-white" type="date" value={item.date ?? ""} onChange={(e) => updateExchangeField(item, "date", e.target.value)} /> : item.date}</TableCell>
-                              <TableCell>{exchangeEditMode ? <Select value={type} onValueChange={(value) => updateExchangeField(item, "type", value)}><SelectTrigger className="w-[120px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{["ECO合炉", "包炉", "普通汰换"].map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select> : type}</TableCell>
+                              <TableCell>{exchangeEditMode ? <Select value={type} onValueChange={(value) => updateExchangeField(item, "type", value)}><SelectTrigger className="h-10 w-[112px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{["ECO合炉", "包炉", "普通汰换"].map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select> : type}</TableCell>
                               <TableCell>{exchangeEditMode ? <Input className="w-[150px] rounded-xl bg-white" value={contractName ?? ""} onChange={(e) => updateExchangeField(item, "contractName", e.target.value)} /> : <span className="font-medium">{contractName}</span>}</TableCell>
                               <TableCell>{exchangeEditMode ? <Input className="w-[170px] rounded-xl bg-white" value={outputName ?? ""} onChange={(e) => updateExchangeField(item, "outputName", e.target.value)} /> : <span className="font-medium">{outputName}</span>}</TableCell>
                               <TableCell>{exchangeEditMode ? <Select value={outputWearLevel} onValueChange={(value) => updateExchangeField(item, "outputWearLevel", value)}><SelectTrigger className="w-[140px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{wearLevelOptions.map((level) => <SelectItem key={level} value={level}>{level}</SelectItem>)}</SelectContent></Select> : outputWearLevel}</TableCell>
@@ -2441,12 +2455,19 @@ function NumberField({ label, value, onChange, placeholder, disabled }) {
   );
 }
 
-function SelectField({ label, value, options, onChange }) {
+function SelectField({ label, value, options, onChange, tone }) {
+  const toneClass =
+    tone === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700 focus:ring-emerald-100"
+      : tone === "danger"
+        ? "border-rose-200 bg-rose-50 text-rose-600 focus:ring-rose-100"
+        : "border-[#e2e8f0] bg-white text-slate-800 focus:ring-[#dbeafe]";
+
   return (
     <div className="w-full min-w-0 space-y-2">
       <Label className="text-xs font-bold text-slate-500">{label}</Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="h-11 w-full min-w-0 rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-semibold text-slate-800 shadow-none transition hover:bg-white focus:ring-2 focus:ring-[#dbeafe] sm:text-sm">
+        <SelectTrigger className={cx("h-11 w-full min-w-0 rounded-2xl px-4 text-base font-semibold shadow-none transition hover:bg-white focus:ring-2 sm:text-sm", toneClass)}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>{options.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
