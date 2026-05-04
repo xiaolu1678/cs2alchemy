@@ -1680,11 +1680,11 @@ export default function CS2TradeRegisterPrototype() {
               )}
 
               <ResponsiveTable maxHeight="640px">
-                <Table>
+                <Table className="w-full table-fixed">
                   <TableHeader className="sticky top-0 z-10 bg-white">
                     <TableRow>
                       {editMode && <TableHead className="w-12">选择</TableHead>}
-                      <TableHead>日期</TableHead><TableHead>平台</TableHead><TableHead>名称</TableHead><TableHead>磨损等级</TableHead><TableHead>磨损区间</TableHead><TableHead>参考价/成本</TableHead><TableHead>售价</TableHead><TableHead>状态</TableHead><TableHead>出售日期</TableHead><TableHead>利润</TableHead>
+                      <TableHead className="w-[90px]">日期</TableHead><TableHead className="w-[90px]">平台</TableHead><TableHead className="w-[170px]">名称</TableHead><TableHead className="w-[130px]">磨损等级</TableHead><TableHead className="w-[130px]">磨损区间</TableHead><TableHead className="w-[130px] pr-6"><div className="flex w-full justify-end">参考价/成本</div></TableHead><TableHead className="w-[120px] pr-6"><div className="flex w-full justify-end">售价</div></TableHead><TableHead className="w-[110px] text-center">状态</TableHead><TableHead className="w-[130px] text-center">出售日期</TableHead><TableHead className="w-[130px] pr-6"><div className="flex w-full justify-end">利润</div></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1696,11 +1696,17 @@ export default function CS2TradeRegisterPrototype() {
                         <TableCell>{isRowEditable(item.id) ? <Input className="min-w-[180px] rounded-xl bg-white" value={item.name} onChange={(e) => updateInventoryField(item, "name", e.target.value)} /> : <span className="font-medium">{item.name}</span>}</TableCell>
                         <TableCell>{isRowEditable(item.id) ? <Select value={item.wearLevel} onValueChange={(value) => updateInventoryField(item, "wearLevel", value)}><SelectTrigger className="w-[140px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{wearLevelOptions.map((level) => <SelectItem key={level} value={level}>{level}</SelectItem>)}</SelectContent></Select> : item.wearLevel}</TableCell>
                         <TableCell>{isRowEditable(item.id) ? <Select value={item.wearRange} onValueChange={(value) => updateInventoryField(item, "wearRange", value)}><SelectTrigger className="w-[150px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{(wearRanges[item.wearLevel] || [item.wearRange]).map((range) => <SelectItem key={range} value={range}>{range}</SelectItem>)}</SelectContent></Select> : item.wearRange}</TableCell>
-                        <TableCell className="pr-6 text-right tabular-nums">{money(item.cost)}</TableCell>
-                        <TableCell>{isRowEditable(item.id) ? <Input className="w-[130px] rounded-xl bg-white" type="number" value={item.salePrice ?? item.sale_price ?? ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => updateInventoryField(item, "salePrice", e.target.value)} /> : item.salePrice === "" || item.salePrice === null || item.salePrice === undefined ? "-" : money(item.salePrice)}</TableCell>
-                        <TableCell><StatusBadge status={item.status} /></TableCell>
-                        <TableCell>{isRowEditable(item.id) ? <Input className="w-[150px] rounded-xl bg-white" type="date" value={item.saleDate ?? item.sale_date ?? ""} onChange={(e) => updateInventoryField(item, "saleDate", e.target.value)} /> : item.saleDate ?? item.sale_date ?? "-"}</TableCell>
-                        <TableCell className={cx("tabular-nums font-semibold", Number(item.profit || 0) > 0 ? "text-emerald-600" : Number(item.profit || 0) < 0 ? "text-red-600" : "text-slate-700")}>{item.profit === "" || item.profit === null || item.profit === undefined ? "-" : money(item.profit)}</TableCell>
+                        <TableCell className="pr-6"><div className="flex w-full justify-end whitespace-nowrap tabular-nums">{money(item.cost)}</div></TableCell>
+                        <TableCell className="pr-6">
+                          {isRowEditable(item.id) ? (
+                            <Input className="ml-auto h-10 w-[120px] rounded-xl bg-white text-right tabular-nums" type="number" value={item.salePrice ?? item.sale_price ?? ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => updateInventoryField(item, "salePrice", e.target.value)} />
+                          ) : (
+                            <div className="flex w-full justify-end whitespace-nowrap tabular-nums">{item.salePrice === "" || item.salePrice === null || item.salePrice === undefined ? "-" : money(item.salePrice)}</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center"><StatusBadge status={item.status} /></TableCell>
+                        <TableCell className="text-center">{isRowEditable(item.id) ? <Input className="mx-auto h-10 w-[130px] rounded-xl bg-white text-center" type="date" value={item.saleDate ?? item.sale_date ?? ""} onChange={(e) => updateInventoryField(item, "saleDate", e.target.value)} /> : item.saleDate ?? item.sale_date ?? "-"}</TableCell>
+                        <TableCell className="pr-6"><div className={cx("flex w-full justify-end whitespace-nowrap tabular-nums font-black", Number(item.profit || 0) > 0 ? "text-emerald-600" : Number(item.profit || 0) < 0 ? "text-red-600" : "text-slate-700")}>{item.profit === "" || item.profit === null || item.profit === undefined ? "-" : money(item.profit)}</div></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
