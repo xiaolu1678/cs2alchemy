@@ -1757,7 +1757,7 @@ export default function CS2TradeRegisterPrototype() {
                       <SectionTitle title="合同信息" />
                       <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:min-w-0 [&_input]:h-11 [&_input]:w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:min-w-0">
                         <FieldDate label="日期" value={contractForm.date} onChange={(value) => setContractForm({ ...contractForm, date: value })} />
-                        <TextFieldWithSuggest label="汰换合同名称" placeholder="例如：FN 红线合同" value={contractForm.contractName} onChange={(value) => setContractForm({ ...contractForm, contractName: value })} suggestions={contractNameSuggestions} onPick={(name) => setContractForm({ ...contractForm, contractName: name })} />
+                        <TextField label="汰换合同名称" placeholder="例如：FN 红线合同" value={contractForm.contractName} onChange={(value) => setContractForm({ ...contractForm, contractName: value })} />
                         <TextFieldWithSuggest label="产物名称" placeholder="例如：AK-47 | 火蛇" value={contractForm.outputName} onChange={(value) => setContractForm({ ...contractForm, outputName: value })} suggestions={outputNameSuggestions} onPick={(name) => setContractForm({ ...contractForm, outputName: name })} />
                         <NumberField label="产物参考价" placeholder="520" value={contractForm.refPrice} onChange={(value) => setContractForm({ ...contractForm, refPrice: value })} />
                       </div>
