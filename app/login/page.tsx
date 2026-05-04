@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,6 +16,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const featureLines = ["材料登记", "库存管理", "合炉记录", "收益统计"];
 
   async function handleLogin() {
     if (!email || !password) {
@@ -96,148 +100,193 @@ export default function LoginPage() {
     }
   }
 
+  function submitByEnter(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      mode === "login" ? handleLogin() : handleRegister();
+    }
+  }
+
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "#f8fafc",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 420,
-          background: "#fff",
-          borderRadius: 24,
-          padding: 28,
-          boxShadow: "0 8px 30px rgba(0,0,0,0.08)",
-        }}
-      >
-        <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800 }}>
-          CS2炼金记账
-        </h1>
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#f5f7fb] px-4 py-8 text-[#0f172a] sm:px-6">
+      <div className="pointer-events-none absolute left-1/2 top-[-220px] h-[520px] w-[760px] -translate-x-1/2 rounded-full bg-white blur-3xl" />
+      <div className="pointer-events-none absolute bottom-[-260px] right-[-160px] h-[560px] w-[560px] rounded-full bg-[#dbeafe]/70 blur-3xl" />
 
-        <p style={{ marginTop: 10, color: "#64748b", fontSize: 14 }}>
-          {mode === "login"
-            ? "—— Designed by ZaLL"
-            : "联系作者：QQ 2647060757"}
-        </p>
+      <div className="relative grid w-full max-w-[980px] overflow-hidden rounded-[38px] border border-[#e2e8f0] bg-white shadow-[0_30px_110px_rgba(15,23,42,0.12)] lg:grid-cols-[0.9fr_1.1fr]">
+        <section className="hidden min-h-[620px] border-r border-[#e2e8f0] bg-gradient-to-br from-[#e0f2fe] via-[#f0f9ff] to-white p-12 lg:flex">
+  <div className="flex h-full flex-col justify-center">
+    <div className="space-y-10">
+      <div className="h-[2px] w-24 bg-[#1e293b] animate-[fadeIn_1s_ease-out]" />
 
-        <div
-          style={{
-            marginTop: 20,
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            background: "#f1f5f9",
-            padding: 6,
-            borderRadius: 14,
-            gap: 6,
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              setMode("login");
-              setConfirmPassword("");
-            }}
-            style={{
-              border: "none",
-              borderRadius: 10,
-              padding: "12px 14px",
-              cursor: "pointer",
-              background: mode === "login" ? "#0f172a" : "transparent",
-              color: mode === "login" ? "#fff" : "#0f172a",
-              fontWeight: 700,
-            }}
-          >
-            登录
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setMode("register")}
-            style={{
-              border: "none",
-              borderRadius: 10,
-              padding: "12px 14px",
-              cursor: "pointer",
-              background: mode === "register" ? "#0f172a" : "transparent",
-              color: mode === "register" ? "#fff" : "#0f172a",
-              fontWeight: 700,
-            }}
-          >
-            注册
-          </button>
+      <div className="space-y-1">
+        <div className="text-[78px] leading-[0.88] font-black tracking-[-0.09em] text-[#0f172a] animate-[slideUp_0.8s_ease-out]">
+          日进
         </div>
+        <div className="text-[78px] leading-[0.88] font-black tracking-[-0.09em] text-[#0f172a] animate-[slideUp_1s_ease-out]">
+          斗金
+        </div>
+      </div>
 
-        <div className="mt-6 space-y-4">
-          <div className="space-y-2">
-            <Label>邮箱</Label>
-            <Input
-              type="email"
-              value={email}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setEmail(e.target.value)
-              }
-              placeholder="请输入邮箱"
-              className="h-14 rounded-2xl"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>密码</Label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setPassword(e.target.value)
-              }
-              placeholder="请输入密码"
-              className="h-14 rounded-2xl"
-            />
-          </div>
-
-          {mode === "register" && (
-            <div className="space-y-2">
-              <Label>确认密码</Label>
-              <Input
-                type="password"
-                value={confirmPassword}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setConfirmPassword(e.target.value)
-                }
-                placeholder="请再次输入密码"
-                className="h-14 rounded-2xl"
-              />
+      <div className="relative h-16 overflow-hidden pt-2">
+        <div className="absolute inset-0 animate-[featureRoll_8s_ease-in-out_infinite] space-y-4">
+          {featureLines.map((line) => (
+            <div key={line} className="flex h-12 items-center gap-3 text-lg font-black tracking-[0.18em] text-[#64748b]">
+              <span className="h-1.5 w-8 rounded-full bg-[#1e293b]" />
+              {line}
             </div>
-          )}
+          ))}
+          <div className="flex h-12 items-center gap-3 text-lg font-black tracking-[0.18em] text-[#64748b]">
+            <span className="h-1.5 w-8 rounded-full bg-[#1e293b]" />
+            {featureLines[0]}
+          </div>
         </div>
+      </div>
+    </div>
+  </div>
 
-        <button
-          type="button"
-          onClick={mode === "login" ? handleLogin : handleRegister}
-          disabled={loading}
-          style={{
-            width: "100%",
-            marginTop: 22,
-            border: "none",
-            borderRadius: 14,
-            padding: "14px 16px",
-            cursor: loading ? "not-allowed" : "pointer",
-            background: "#0f172a",
-            color: "#fff",
-            fontWeight: 800,
-            fontSize: 15,
-            opacity: loading ? 0.7 : 1,
-          }}
-        >
-          {loading ? "处理中..." : mode === "login" ? "登录" : "注册"}
-        </button>
+  <style jsx>{`
+    @keyframes slideUp {
+      from {
+        transform: translateY(22px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes featureRoll {
+      0%, 14% { transform: translateY(0); }
+      22%, 36% { transform: translateY(-64px); }
+      44%, 58% { transform: translateY(-128px); }
+      66%, 80% { transform: translateY(-192px); }
+      88%, 100% { transform: translateY(-256px); }
+    }
+  `}</style>
+</section>
+
+        <section className="flex min-h-[620px] items-center justify-center px-5 py-10 sm:px-10 lg:px-14">
+          <div className="flex min-h-[500px] w-full max-w-[430px] flex-col justify-center">
+            <div className="mb-9">
+              <div className="lg:hidden">
+                <div className="h-1.5 w-14 rounded-full bg-[#1e293b]" />
+                <h1 className="mt-5 text-4xl font-black tracking-[-0.06em] text-[#0f172a]">日进斗金</h1>
+              </div>
+
+              <p className="hidden text-xs font-black tracking-[0.3em] text-[#94a3b8] lg:block">
+                {mode === "login" ? "LOGIN" : "REGISTER"}
+              </p>
+              <h2 className="mt-3 text-3xl font-black tracking-[-0.04em] text-[#0f172a] sm:text-4xl">
+                {mode === "login" ? "登录" : "注册"}
+              </h2>
+              <p className="mt-3 text-sm text-[#64748b]">
+                {mode === "login" ? "Designed by ZaLL" : "联系作者：QQ 2647060757"}
+              </p>
+            </div>
+
+            <div className="mb-8 grid grid-cols-2 gap-1.5 rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] p-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login");
+                  setConfirmPassword("");
+                }}
+                className={`h-12 rounded-xl text-sm font-black transition-all ${
+                  mode === "login"
+                    ? "bg-[#1e293b] text-white shadow-sm"
+                    : "text-[#64748b] hover:bg-white hover:text-[#0f172a]"
+                }`}
+              >
+                登录
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMode("register")}
+                className={`h-12 rounded-xl text-sm font-black transition-all ${
+                  mode === "register"
+                    ? "bg-[#1e293b] text-white shadow-sm"
+                    : "text-[#64748b] hover:bg-white hover:text-[#0f172a]"
+                }`}
+              >
+                注册
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <Label className="text-xs font-black text-[#64748b]">邮箱</Label>
+                <Input
+                  type="email"
+                  value={email}
+                  onKeyDown={submitByEnter}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                  placeholder="请输入邮箱"
+                  className="h-14 rounded-2xl border-[#e2e8f0] bg-white px-4 text-base shadow-none transition focus:border-[#3b82f6] focus:ring-4 focus:ring-[#eff6ff]"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-black text-[#64748b]">密码</Label>
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onKeyDown={submitByEnter}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                    placeholder="请输入密码"
+                    className="h-14 rounded-2xl border-[#e2e8f0] bg-white px-4 pr-12 text-base shadow-none transition focus:border-[#3b82f6] focus:ring-4 focus:ring-[#eff6ff]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 hover:bg-[#eff6ff] hover:text-[#2563eb]"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {mode === "register" && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-black text-[#64748b]">确认密码</Label>
+                  <div className="relative">
+                    <Input
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onKeyDown={submitByEnter}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
+                      placeholder="请再次输入密码"
+                      className="h-14 rounded-2xl border-[#e2e8f0] bg-white px-4 pr-12 text-base shadow-none transition focus:border-[#3b82f6] focus:ring-4 focus:ring-[#eff6ff]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                      className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 hover:bg-[#eff6ff] hover:text-[#2563eb]"
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={mode === "login" ? handleLogin : handleRegister}
+              disabled={loading}
+              className="mt-8 h-14 w-full rounded-2xl bg-[#1e293b] text-base font-black text-white shadow-[0_16px_34px_rgba(30,41,59,0.20)] transition hover:bg-[#334155] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? "处理中..." : mode === "login" ? "登录" : "注册"}
+            </button>
+          </div>
+        </section>
       </div>
     </main>
   );
