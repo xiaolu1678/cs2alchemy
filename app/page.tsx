@@ -1619,7 +1619,7 @@ export default function CS2TradeRegisterPrototype() {
               icon={<Boxes className="h-5 w-5" />}
               action={
                 !editMode ? (
-                  <div className="flex flex-wrap justify-end gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     {filteredInventory.length > 20 && <SoftButton onClick={() => setShowAllInventory((prev) => !prev)}>{showAllInventory ? "收起 ↑" : "查看全部 ↓"}</SoftButton>}
                     <button
                       type="button"
@@ -1830,10 +1830,8 @@ export default function CS2TradeRegisterPrototype() {
                       </SoftButton>
                     )}
                     {!exchangeEditMode ? (
-                      <Button
+                      <button
                         type="button"
-                        variant="outline"
-                        className="rounded-2xl bg-white"
                         onClick={() => {
                           if (isReadonlyMode) {
                             showToast("会员已过期，当前为只读模式", "error");
@@ -1842,27 +1840,38 @@ export default function CS2TradeRegisterPrototype() {
                           setExchangeEditMode(true);
                           setExchangeEdits({});
                         }}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-5 text-sm font-bold text-sky-800 shadow-sm transition hover:bg-sky-100"
                       >
-                        <Pencil className="mr-2 h-4 w-4" /> 编辑记录
-                      </Button>
+                        <Pencil className="h-4 w-4" />
+                        编辑记录
+                      </button>
                     ) : (
                       <>
-                        <Button type="button" variant="outline" className="rounded-2xl bg-white" onClick={() => { setExchangeEditMode(false); setExchangeEdits({}); }}>
+                        <button
+                          type="button"
+                          onClick={() => { setExchangeEditMode(false); setExchangeEdits({}); }}
+                          className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                        >
                           取消
-                        </Button>
-                        <Button type="button" className="rounded-2xl bg-slate-900" disabled={isSavingExchangeEdits} onClick={saveExchangeEdits}>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isSavingExchangeEdits}
+                          onClick={saveExchangeEdits}
+                          className="inline-flex h-11 items-center justify-center rounded-full border border-slate-900 bg-slate-950 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
                           {isSavingExchangeEdits ? "保存中..." : "保存编辑"}
-                        </Button>
+                        </button>
                       </>
                     )}
                   </div>
                 }
               >
-                <div className="mb-4 rounded-[24px] border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <div className="mb-4 rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <Input
-                      className="h-11 rounded-2xl bg-slate-50 pl-9"
+                      className="h-11 w-full rounded-2xl border-slate-200 bg-slate-50 pl-9 text-sm font-medium text-slate-800"
                       placeholder="搜索日期 / 类型 / 合同 / 产物 / 磨损 / 结果 / 状态"
                       value={exchangeKeyword}
                       onChange={(e) => setExchangeKeyword(e.target.value)}
@@ -2206,6 +2215,29 @@ function Toast({ toast }) {
 }
 
 function HeaderPanel({ currentUser, membershipInfo, remainingDays, totalProfit, hidden, onToggleTotal, showUserPanel, setShowUserPanel, handleLogout }) {
+  const ANNOUNCEMENT_VERSION = "2026-05-04-ui-v4";
+  const ANNOUNCEMENT_LINES = [
+    "日进斗金 v4.0 升级如下：",
+    "1、系统 UI 整体换新；",
+    "2、库存管理数据可自由编辑；",
+    "3、汰换记录数据可自由编辑；",
+    "4、材料录入板块新增近 5 条材料记忆。",
+  ];
+  const announcementKey = `announcement-read-${currentUser?.id || "guest"}-${ANNOUNCEMENT_VERSION}`;
+  const [showAnnouncement, setShowAnnouncement] = React.useState(false);
+  const [announcementRead, setAnnouncementRead] = React.useState(true);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    setAnnouncementRead(localStorage.getItem(announcementKey) === "1");
+  }, [announcementKey]);
+
+  function openAnnouncement() {
+    setShowAnnouncement((prev) => !prev);
+    setAnnouncementRead(true);
+    if (typeof window !== "undefined") localStorage.setItem(announcementKey, "1");
+  }
+
   return (
     <div className="rounded-[28px] border border-slate-200 bg-white px-6 py-5 shadow-[0_10px_36px_rgba(15,23,42,0.055)] lg:px-7">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -2223,6 +2255,34 @@ function HeaderPanel({ currentUser, membershipInfo, remainingDays, totalProfit, 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="inline-flex h-11 items-center rounded-2xl bg-emerald-50 px-4 text-sm font-bold text-emerald-700">
             {remainingDays > 0 ? `会员剩余 ${remainingDays} 天` : "只读模式"}
+          </div>
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={openAnnouncement}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 text-sm font-bold text-amber-800 shadow-sm transition hover:bg-amber-100"
+            >
+              <Sparkles className="h-4 w-4" />
+              公告
+              {!announcementRead && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />}
+            </button>
+
+            {showAnnouncement && (
+              <div className="absolute right-0 top-13 z-50 w-[320px] rounded-[24px] border border-slate-200 bg-white p-4 text-sm shadow-[0_18px_60px_rgba(15,23,42,0.16)]">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="font-black text-slate-950">系统公告</div>
+                  <button type="button" onClick={() => setShowAnnouncement(false)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="mt-3 space-y-1 rounded-[18px] bg-slate-50 p-3 text-sm leading-6 text-slate-600">
+                  {ANNOUNCEMENT_LINES.map((line) => (
+                    <div key={line}>{line}</div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <button
