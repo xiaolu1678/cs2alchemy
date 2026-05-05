@@ -1505,7 +1505,7 @@ export default function CS2TradeRegisterPrototype() {
             setShowAllPackageMaterials(false);
           }}
         >
-          <TabsList className="grid min-h-[72px] w-full grid-cols-2 items-center gap-2 rounded-[30px] border border-[#e2e8f0] bg-white p-2 shadow-[0_8px_30px_rgba(15,23,42,0.06)] sm:grid-cols-4">
+          <TabsList className="grid w-full grid-cols-2 items-stretch gap-2 rounded-[30px] border border-[#e2e8f0] bg-white p-2 shadow-[0_8px_30px_rgba(15,23,42,0.06)] sm:min-h-[72px] sm:grid-cols-4 sm:items-center">
             <NavTab value="materials" icon={<Plus className="h-4 w-4" />} label="进货" sub="材料登记" />
             <NavTab value="inventory" icon={<Boxes className="h-4 w-4" />} label="库存" sub="管理与出售" />
             <NavTab value="exchange" icon={<Layers3 className="h-4 w-4" />} label="合成" sub="汰换记录" />
@@ -1753,7 +1753,7 @@ export default function CS2TradeRegisterPrototype() {
 
                 {exchangeMode === "ECO合炉" ? (
                   <div className="space-y-5">
-                    <div className="rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
+                    <div className="overflow-hidden rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
                       <SectionTitle title="合同信息" />
                       <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:min-w-0 [&_input]:h-11 [&_input]:w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:min-w-0">
                         <FieldDate label="日期" value={contractForm.date} onChange={(value) => setContractForm({ ...contractForm, date: value })} />
@@ -1763,7 +1763,7 @@ export default function CS2TradeRegisterPrototype() {
                       </div>
                     </div>
 
-                    <div className="rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
+                    <div className="overflow-hidden rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
                       <SectionTitle title="产物信息" />
                       <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:min-w-0 [&_input]:h-11 [&_input]:w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:min-w-0">
                         <SelectField label="汰换结果" value={contractForm.result} options={["成功", "失败"]} onChange={syncContractResult} tone={contractForm.result === "成功" ? "success" : "danger"} />
@@ -1795,7 +1795,7 @@ export default function CS2TradeRegisterPrototype() {
                   </div>
                 ) : (
                   <div className="space-y-5">
-                    <div className="rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
+                    <div className="overflow-hidden rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
                       <SectionTitle title="包炉信息" />
                       <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:min-w-0 [&_input]:h-11 [&_input]:w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:min-w-0">
                         <FieldDate label="日期" value={packageForm.date} onChange={(value) => setPackageForm({ ...packageForm, date: value })} />
@@ -1805,7 +1805,7 @@ export default function CS2TradeRegisterPrototype() {
                       </div>
                     </div>
 
-                    <div className="rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
+                    <div className="overflow-hidden rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
                       <SectionTitle title="产物信息" />
                       <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:min-w-0 [&_input]:h-11 [&_input]:w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:min-w-0">
                         <InfoBox label="参考价" value={money(packageCost)} compact />
@@ -2254,8 +2254,8 @@ function HeaderPanel({ currentUser, membershipInfo, remainingDays, totalProfit, 
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-          <div className="inline-flex h-11 items-center rounded-2xl bg-emerald-50 px-4 text-sm font-bold text-emerald-700">
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:w-auto">
+          <div className="inline-flex h-11 w-full items-center rounded-2xl bg-emerald-50 px-4 text-sm font-bold text-emerald-700 sm:w-auto">
             {remainingDays > 0 ? `会员剩余 ${remainingDays} 天` : "只读模式"}
           </div>
 
@@ -2263,7 +2263,7 @@ function HeaderPanel({ currentUser, membershipInfo, remainingDays, totalProfit, 
             <button
               type="button"
               onClick={openAnnouncement}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 text-sm font-bold text-amber-700 shadow-sm transition hover:bg-amber-100"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 text-sm font-bold text-amber-700 shadow-sm transition hover:bg-amber-100 sm:w-auto"
             >
               <Sparkles className="h-4 w-4" />
               公告
@@ -2271,7 +2271,7 @@ function HeaderPanel({ currentUser, membershipInfo, remainingDays, totalProfit, 
             </button>
 
             {showAnnouncement && (
-              <div className="absolute right-0 top-13 z-50 w-[340px] rounded-[24px] border border-[#e2e8f0] bg-white p-4 text-sm shadow-[0_18px_60px_rgba(15,23,42,0.16)]">
+              <div className="absolute right-0 top-13 z-50 w-[calc(100vw-48px)] max-w-[340px] rounded-[24px] border border-[#e2e8f0] bg-white p-4 text-sm shadow-[0_18px_60px_rgba(15,23,42,0.16)]">
                 <div className="flex items-center justify-between gap-3">
                   <div className="font-black text-slate-950">系统公告</div>
                   <button type="button" onClick={() => setShowAnnouncement(false)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
@@ -2290,19 +2290,19 @@ function HeaderPanel({ currentUser, membershipInfo, remainingDays, totalProfit, 
           <button
             type="button"
             onClick={onToggleTotal}
-            className="inline-flex h-11 items-center gap-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 text-left shadow-sm transition hover:bg-white"
+            className="inline-flex h-11 w-full items-center gap-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 text-left shadow-sm transition hover:bg-white sm:w-auto"
           >
             <span className="text-sm font-semibold text-slate-500">总收益</span>
             <span className="text-lg font-black tracking-tight tabular-nums text-slate-950">{hidden ? "••••" : money(totalProfit)}</span>
             {hidden ? <EyeOff className="h-4 w-4 text-slate-400" /> : <Eye className="h-4 w-4 text-slate-400" />}
           </button>
 
-          <Button type="button" onClick={() => setShowUserPanel((prev) => !prev)} variant="outline" className="h-11 rounded-2xl bg-white px-4 shadow-sm">
+          <Button type="button" onClick={() => setShowUserPanel((prev) => !prev)} variant="outline" className="h-11 w-full rounded-2xl bg-white px-4 shadow-sm sm:w-auto">
             <UserRound className="mr-2 h-4 w-4" />
             {showUserPanel ? "收起" : "用户中心"}
           </Button>
 
-          <Button type="button" onClick={handleLogout} variant="outline" className="h-11 rounded-2xl bg-white px-4 shadow-sm">
+          <Button type="button" onClick={handleLogout} variant="outline" className="h-11 w-full rounded-2xl bg-white px-4 shadow-sm sm:w-auto">
             <LogOut className="mr-2 h-4 w-4" />
             退出
           </Button>
@@ -2351,7 +2351,7 @@ function Panel({ title, desc, icon, action, children }) {
           {action ? <div className="shrink-0">{action}</div> : null}
         </div>
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className="min-w-0 overflow-hidden">{children}</CardContent>
     </Card>
   );
 }
@@ -2378,7 +2378,7 @@ function NavTab({ value, icon, label, sub }) {
   return (
     <TabsTrigger
       value={value}
-      className="group relative h-14 rounded-[22px] border border-transparent bg-transparent px-4 text-slate-500 transition-all duration-200 hover:bg-white hover:text-slate-900 data-[state=active]:border-slate-950 data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none"
+      className="group relative h-14 w-full rounded-[22px] border border-transparent bg-transparent px-3 text-slate-500 transition-all duration-200 hover:bg-white hover:text-slate-900 data-[state=active]:border-slate-950 data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none sm:px-4"
     >
       <div className="flex items-center justify-center gap-2.5 leading-none">
         <span className="text-slate-400 group-data-[state=active]:text-white">
@@ -2418,9 +2418,9 @@ function SectionTitle({ title }) {
 
 function FieldDate({ label, value, onChange, lang }) {
   return (
-    <div className="w-full min-w-0 space-y-2">
+    <div className="w-full max-w-full min-w-0 space-y-2 overflow-hidden">
       <Label className="text-xs font-bold text-slate-500">{label}</Label>
-      <Input type="date" value={value ?? ""} lang={lang} onChange={(e) => onChange(e.target.value)} className="h-11 w-full min-w-0 rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-medium text-slate-800 transition focus:border-[#3b82f6] focus:ring-2 focus:ring-[#dbeafe] sm:text-sm" />
+      <Input type="date" value={value ?? ""} lang={lang} onChange={(e) => onChange(e.target.value)} className="h-11 w-full max-w-full min-w-0 rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-medium text-slate-800 transition focus:border-[#3b82f6] focus:ring-2 focus:ring-[#dbeafe] sm:text-sm" />
     </div>
   );
 }
@@ -2429,7 +2429,7 @@ function TextField({ label, value, onChange, placeholder }) {
   return (
     <div className="w-full min-w-0 space-y-2">
       <Label className="text-xs font-bold text-slate-500">{label}</Label>
-      <Input value={value ?? ""} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className="h-11 w-full min-w-0 rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-medium text-slate-800 transition focus:border-[#3b82f6] focus:ring-2 focus:ring-[#dbeafe] sm:text-sm" />
+      <Input value={value ?? ""} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className="h-11 w-full max-w-full min-w-0 rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-medium text-slate-800 transition focus:border-[#3b82f6] focus:ring-2 focus:ring-[#dbeafe] sm:text-sm" />
     </div>
   );
 }
@@ -2468,7 +2468,7 @@ function TextFieldWithSuggest({ label, value, onChange, placeholder, suggestions
   return (
     <div className="w-full min-w-0 space-y-2">
       <Label className="text-xs font-bold text-slate-500">{label}</Label>
-      <Input placeholder={placeholder} value={value ?? ""} onChange={(e) => onChange(e.target.value)} className="h-11 w-full min-w-0 rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-medium text-slate-800 transition focus:border-[#3b82f6] focus:ring-2 focus:ring-[#dbeafe] sm:text-sm" />
+      <Input placeholder={placeholder} value={value ?? ""} onChange={(e) => onChange(e.target.value)} className="h-11 w-full max-w-full min-w-0 rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-medium text-slate-800 transition focus:border-[#3b82f6] focus:ring-2 focus:ring-[#dbeafe] sm:text-sm" />
       <SuggestionList items={suggestions} onPick={onPick} />
     </div>
   );
@@ -2579,7 +2579,7 @@ function MaterialPicker({ title, filters, setFilters, nameInput, setNameInput, s
   return (
     <div className="space-y-3 rounded-[24px] border border-[#e2e8f0] bg-white/70 p-4">
       <div className="flex items-center justify-between gap-3"><div className="text-sm font-black text-slate-800">{title}</div><div className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">已选 {selectedCount} ｜ {hint}</div></div>
-      <div className="grid gap-3 md:grid-cols-2"><FieldDate label="日期筛选" value={filters.date} onChange={(value) => setFilters({ ...filters, date: value })} /><TextField label="名称筛选" placeholder="输入名称关键词" value={nameInput} onChange={setNameInput} /></div>
+      <div className="grid min-w-0 gap-3 md:grid-cols-2 [&>div]:min-w-0"><FieldDate label="日期筛选" value={filters.date} onChange={(value) => setFilters({ ...filters, date: value })} /><TextField label="名称筛选" placeholder="输入名称关键词" value={nameInput} onChange={setNameInput} /></div>
       {!shouldShow ? <div className="rounded-[20px] border border-dashed border-slate-300 bg-white px-4 py-5 text-center text-sm text-slate-400">请先输入日期或名称筛选，再选择材料。</div> : (
         <div className="max-h-80 space-y-2 overflow-auto rounded-[22px] border border-[#e2e8f0] bg-white p-3">
           {items.map((item) => {
