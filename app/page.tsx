@@ -1766,13 +1766,7 @@ export default function CS2TradeRegisterPrototype() {
                     <div className="rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
                       <SectionTitle title="产物信息" />
                       <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:min-w-0 [&_input]:h-11 [&_input]:w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:min-w-0">
-                        <SelectField
-                          label="汰换结果"
-                          value={contractForm.result}
-                          options={["成功", "失败"]}
-                          onChange={syncContractResult}
-                          tone={contractForm.result === "成功" ? "success" : "danger"}
-                        />
+                        <SelectField label="汰换结果" value={contractForm.result} options={["成功", "失败"]} onChange={syncContractResult} tone={contractForm.result === "成功" ? "success" : "danger"} />
                         <NumberField label="开炉费比例" value={contractForm.result === "失败" ? "0" : contractForm.furnaceRatePercent} onChange={(value) => setContractForm({ ...contractForm, furnaceRatePercent: value })} disabled={contractForm.result === "失败"} />
                         <SelectField label="产物磨损等级" value={contractForm.outputWearLevel} options={wearLevelOptions} onChange={(value) => setContractForm({ ...contractForm, outputWearLevel: value, outputWearRange: wearRanges[value][0], outputCustomWear: "" })} />
                         <SelectField label="产物磨损区间" value={contractForm.outputWearRange} options={currentContractWearRanges} onChange={(value) => setContractForm({ ...contractForm, outputWearRange: value, outputCustomWear: value === "自定义" ? contractForm.outputCustomWear : "" })} />
@@ -1807,13 +1801,7 @@ export default function CS2TradeRegisterPrototype() {
                         <FieldDate label="日期" value={packageForm.date} onChange={(value) => setPackageForm({ ...packageForm, date: value })} />
                         <TextField label="包炉名称" placeholder="例如：P250 包炉" value={packageForm.contractName} onChange={(value) => setPackageForm({ ...packageForm, contractName: value })} />
                         <TextField label="产物名称" placeholder="例如：AK-47 | 火蛇" value={packageForm.outputName} onChange={(value) => setPackageForm({ ...packageForm, outputName: value })} />
-                        <SelectField
-                          label="包炉结果"
-                          value={packageForm.result}
-                          options={["成功", "失败"]}
-                          onChange={(value) => setPackageForm({ ...packageForm, result: value })}
-                          tone={packageForm.result === "成功" ? "success" : "danger"}
-                        />
+                        <SelectField label="包炉结果" value={packageForm.result} options={["成功", "失败"]} onChange={(value) => setPackageForm({ ...packageForm, result: value })} tone={packageForm.result === "成功" ? "success" : "danger"} />
                       </div>
                     </div>
 
