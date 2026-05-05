@@ -1505,7 +1505,7 @@ export default function CS2TradeRegisterPrototype() {
             setShowAllPackageMaterials(false);
           }}
         >
-          <TabsList className="grid w-full grid-cols-2 items-stretch gap-2 rounded-[30px] border border-[#e2e8f0] bg-white p-2 shadow-[0_8px_30px_rgba(15,23,42,0.06)] sm:min-h-[72px] sm:grid-cols-4 sm:items-center">
+          <TabsList className="!grid !h-auto !min-h-[136px] w-full !grid-cols-2 items-stretch gap-2 rounded-[30px] border border-[#e2e8f0] bg-white p-2 shadow-[0_8px_30px_rgba(15,23,42,0.06)] sm:!min-h-[72px] sm:!grid-cols-4 sm:items-center">
             <NavTab value="materials" icon={<Plus className="h-4 w-4" />} label="进货" sub="材料登记" />
             <NavTab value="inventory" icon={<Boxes className="h-4 w-4" />} label="库存" sub="管理与出售" />
             <NavTab value="exchange" icon={<Layers3 className="h-4 w-4" />} label="合成" sub="汰换记录" />
@@ -1755,7 +1755,7 @@ export default function CS2TradeRegisterPrototype() {
                   <div className="space-y-5">
                     <div className="overflow-hidden rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
                       <SectionTitle title="合同信息" />
-                      <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:min-w-0 [&_input]:h-11 [&_input]:w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:min-w-0">
+                      <div className="mt-3 grid min-w-0 grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:max-w-full [&>div]:min-w-0 [&_input]:box-border [&_input]:h-11 [&_input]:w-full [&_input]:max-w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:max-w-full [&_button[role=combobox]]:min-w-0">
                         <FieldDate label="日期" value={contractForm.date} onChange={(value) => setContractForm({ ...contractForm, date: value })} />
                         <TextField label="汰换合同名称" placeholder="例如：FN 红线合同" value={contractForm.contractName} onChange={(value) => setContractForm({ ...contractForm, contractName: value })} />
                         <TextField label="产物名称" placeholder="例如：AK-47 | 火蛇" value={contractForm.outputName} onChange={(value) => setContractForm({ ...contractForm, outputName: value })} />
@@ -1765,7 +1765,7 @@ export default function CS2TradeRegisterPrototype() {
 
                     <div className="overflow-hidden rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
                       <SectionTitle title="产物信息" />
-                      <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:min-w-0 [&_input]:h-11 [&_input]:w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:min-w-0">
+                      <div className="mt-3 grid min-w-0 grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:max-w-full [&>div]:min-w-0 [&_input]:box-border [&_input]:h-11 [&_input]:w-full [&_input]:max-w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:max-w-full [&_button[role=combobox]]:min-w-0">
                         <SelectField label="汰换结果" value={contractForm.result} options={["成功", "失败"]} onChange={syncContractResult} tone={contractForm.result === "成功" ? "success" : "danger"} />
                         <NumberField label="开炉费比例" value={contractForm.result === "失败" ? "0" : contractForm.furnaceRatePercent} onChange={(value) => setContractForm({ ...contractForm, furnaceRatePercent: value })} disabled={contractForm.result === "失败"} />
                         <SelectField label="产物磨损等级" value={contractForm.outputWearLevel} options={wearLevelOptions} onChange={(value) => setContractForm({ ...contractForm, outputWearLevel: value, outputWearRange: wearRanges[value][0], outputCustomWear: "" })} />
@@ -1797,7 +1797,7 @@ export default function CS2TradeRegisterPrototype() {
                   <div className="space-y-5">
                     <div className="overflow-hidden rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
                       <SectionTitle title="包炉信息" />
-                      <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:min-w-0 [&_input]:h-11 [&_input]:w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:min-w-0">
+                      <div className="mt-3 grid min-w-0 grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:max-w-full [&>div]:min-w-0 [&_input]:box-border [&_input]:h-11 [&_input]:w-full [&_input]:max-w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:max-w-full [&_button[role=combobox]]:min-w-0">
                         <FieldDate label="日期" value={packageForm.date} onChange={(value) => setPackageForm({ ...packageForm, date: value })} />
                         <TextField label="包炉名称" placeholder="例如：P250 包炉" value={packageForm.contractName} onChange={(value) => setPackageForm({ ...packageForm, contractName: value })} />
                         <TextField label="产物名称" placeholder="例如：AK-47 | 火蛇" value={packageForm.outputName} onChange={(value) => setPackageForm({ ...packageForm, outputName: value })} />
@@ -1807,7 +1807,7 @@ export default function CS2TradeRegisterPrototype() {
 
                     <div className="overflow-hidden rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
                       <SectionTitle title="产物信息" />
-                      <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:min-w-0 [&_input]:h-11 [&_input]:w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:min-w-0">
+                      <div className="mt-3 grid min-w-0 grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:max-w-full [&>div]:min-w-0 [&_input]:box-border [&_input]:h-11 [&_input]:w-full [&_input]:max-w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:max-w-full [&_button[role=combobox]]:min-w-0">
                         <InfoBox label="参考价" value={money(packageCost)} compact />
                         <SelectField label="产物磨损等级" value={packageForm.outputWearLevel} options={wearLevelOptions} onChange={(value) => setPackageForm({ ...packageForm, outputWearLevel: value, outputWearRange: wearRanges[value][0], outputCustomWear: "" })} />
                         <SelectField label="产物磨损区间" value={packageForm.outputWearRange} options={currentPackageWearRanges} onChange={(value) => setPackageForm({ ...packageForm, outputWearRange: value, outputCustomWear: value === "自定义" ? packageForm.outputCustomWear : "" })} />
@@ -2341,9 +2341,9 @@ function Panel({ title, desc, icon, action, children }) {
     <Card className="overflow-hidden rounded-[30px] border border-[#e2e8f0] bg-white shadow-[0_14px_44px_rgba(15,23,42,0.055)] transition-all hover:shadow-[0_18px_56px_rgba(15,23,42,0.075)]">
       <CardHeader className="pb-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div className="flex items-start gap-3">
+          <div className="flex min-w-0 items-start gap-3">
             <div className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#1e293b] text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)]">{icon}</div>
-            <div>
+            <div className="min-w-0">
               <CardTitle className="text-xl font-black tracking-tight text-slate-950">{title}</CardTitle>
               {desc ? <div className="mt-1 text-sm leading-6 text-slate-500">{desc}</div> : null}
             </div>
@@ -2378,7 +2378,7 @@ function NavTab({ value, icon, label, sub }) {
   return (
     <TabsTrigger
       value={value}
-      className="group relative h-14 w-full rounded-[22px] border border-transparent bg-transparent px-3 text-slate-500 transition-all duration-200 hover:bg-white hover:text-slate-900 data-[state=active]:border-slate-950 data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none sm:px-4"
+      className="group relative !m-0 !h-14 !w-full !min-w-0 rounded-[22px] border border-transparent bg-transparent px-3 text-slate-500 transition-all duration-200 hover:bg-white hover:text-slate-900 data-[state=active]:border-slate-950 data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none sm:px-4"
     >
       <div className="flex items-center justify-center gap-2.5 leading-none">
         <span className="text-slate-400 group-data-[state=active]:text-white">
@@ -2394,7 +2394,7 @@ function NavTab({ value, icon, label, sub }) {
 function FilterBar({ children }) {
   return (
     <div className="mb-4 rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
-      <div className="grid items-end gap-3 xl:grid-cols-[180px_minmax(260px,1fr)_132px_132px_132px] [&>div]:min-w-0 [&_input]:h-11 [&_input]:w-full [&_input]:rounded-2xl [&_input]:border-[#e2e8f0] [&_input]:bg-white [&_input]:px-4 [&_input]:text-sm [&_input]:font-medium [&_input]:text-slate-800 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:min-w-0 [&_button[role=combobox]]:rounded-2xl [&_button[role=combobox]]:border-[#e2e8f0] [&_button[role=combobox]]:bg-white [&_button[role=combobox]]:px-4 [&_button[role=combobox]]:text-sm [&_button[role=combobox]]:font-semibold [&_button[role=combobox]]:text-slate-700">
+      <div className="grid items-end gap-3 xl:grid-cols-[180px_minmax(260px,1fr)_132px_132px_132px] [&>div]:min-w-0 [&_input]:h-11 [&_input]:w-full [&_input]:rounded-2xl [&_input]:border-[#e2e8f0] [&_input]:bg-white [&_input]:px-4 [&_input]:text-sm [&_input]:font-medium [&_input]:text-slate-800 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:max-w-full [&_button[role=combobox]]:min-w-0 [&_button[role=combobox]]:rounded-2xl [&_button[role=combobox]]:border-[#e2e8f0] [&_button[role=combobox]]:bg-white [&_button[role=combobox]]:px-4 [&_button[role=combobox]]:text-sm [&_button[role=combobox]]:font-semibold [&_button[role=combobox]]:text-slate-700">
         {children}
       </div>
     </div>
@@ -2418,9 +2418,9 @@ function SectionTitle({ title }) {
 
 function FieldDate({ label, value, onChange, lang }) {
   return (
-    <div className="w-full max-w-full min-w-0 space-y-2 overflow-hidden">
+    <div className="w-full max-w-full min-w-0 space-y-2 overflow-hidden [&_input]:block [&_input]:w-full [&_input]:max-w-full [&_input]:min-w-0">
       <Label className="text-xs font-bold text-slate-500">{label}</Label>
-      <Input type="date" value={value ?? ""} lang={lang} onChange={(e) => onChange(e.target.value)} className="h-11 w-full max-w-full min-w-0 rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-medium text-slate-800 transition focus:border-[#3b82f6] focus:ring-2 focus:ring-[#dbeafe] sm:text-sm" />
+      <Input type="date" value={value ?? ""} lang={lang} onChange={(e) => onChange(e.target.value)} className="box-border h-11 w-full max-w-full min-w-0 appearance-none rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-medium text-slate-800 transition focus:border-[#3b82f6] focus:ring-2 focus:ring-[#dbeafe] sm:text-sm" />
     </div>
   );
 }
@@ -2429,7 +2429,7 @@ function TextField({ label, value, onChange, placeholder }) {
   return (
     <div className="w-full min-w-0 space-y-2">
       <Label className="text-xs font-bold text-slate-500">{label}</Label>
-      <Input value={value ?? ""} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className="h-11 w-full max-w-full min-w-0 rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-medium text-slate-800 transition focus:border-[#3b82f6] focus:ring-2 focus:ring-[#dbeafe] sm:text-sm" />
+      <Input value={value ?? ""} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className="box-border h-11 w-full max-w-full min-w-0 appearance-none rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-medium text-slate-800 transition focus:border-[#3b82f6] focus:ring-2 focus:ring-[#dbeafe] sm:text-sm" />
     </div>
   );
 }
@@ -2468,7 +2468,7 @@ function TextFieldWithSuggest({ label, value, onChange, placeholder, suggestions
   return (
     <div className="w-full min-w-0 space-y-2">
       <Label className="text-xs font-bold text-slate-500">{label}</Label>
-      <Input placeholder={placeholder} value={value ?? ""} onChange={(e) => onChange(e.target.value)} className="h-11 w-full max-w-full min-w-0 rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-medium text-slate-800 transition focus:border-[#3b82f6] focus:ring-2 focus:ring-[#dbeafe] sm:text-sm" />
+      <Input placeholder={placeholder} value={value ?? ""} onChange={(e) => onChange(e.target.value)} className="box-border h-11 w-full max-w-full min-w-0 appearance-none rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-medium text-slate-800 transition focus:border-[#3b82f6] focus:ring-2 focus:ring-[#dbeafe] sm:text-sm" />
       <SuggestionList items={suggestions} onPick={onPick} />
     </div>
   );
