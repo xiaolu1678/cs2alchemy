@@ -894,16 +894,17 @@ export default function CS2TradeRegisterPrototype() {
   };
 
   const syncContractResult = (nextResult) => {
-    setContractForm((prev) => ({
-      ...prev,
-      result: nextResult,
-      furnaceRatePercent:
+    setContractForm((prev) => {
+      const currentRate = String(prev.furnaceRatePercent ?? "").trim();
+      const nextRate =
         nextResult === "成功"
-          ? prev.result === "失败"
-            ? "10"
-            : prev.furnaceRatePercent || "10"
-          : "0",
-    }));
+          ? currentRate && Number(currentRate) > 0
+            ? currentRate
+            : "10"
+          : "0";
+
+      return { ...prev, result: nextResult, furnaceRatePercent: nextRate };
+    });
   };
 
   const addContract = async () => {
@@ -1441,20 +1442,20 @@ export default function CS2TradeRegisterPrototype() {
 
   if (!authChecked) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-        <div className="rounded-[32px] border border-white/80 bg-white/80 px-8 py-6 text-center shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#1e293b] text-white">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#f4f6f2] via-[#fffdf8] to-[#edf8f2]">
+        <div className="rounded-[32px] border border-white/80 bg-[#fffdf8]/80 px-8 py-6 text-center shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#194b45] text-white">
             <Sparkles className="h-5 w-5" />
           </div>
-          <div className="text-lg font-bold text-slate-900">正在进入日进斗金</div>
-          <div className="mt-1 text-sm text-slate-500">加载账户与交易数据...</div>
+          <div className="text-lg font-bold text-[#1f2a2a]">正在进入日进斗金</div>
+          <div className="mt-1 text-sm text-[#6b6257]">加载账户与交易数据...</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] p-3 text-slate-900 sm:p-6">
+    <div className="min-h-screen bg-[#f4f6f2] p-3 text-[#1f2a2a] sm:p-6">
       <Toast toast={toast} />
 
       <div className="mx-auto w-full max-w-[1500px] space-y-5">
@@ -1514,7 +1515,7 @@ export default function CS2TradeRegisterPrototype() {
             setShowAllPackageMaterials(false);
           }}
         >
-          <TabsList className="!grid !h-auto !min-h-[136px] w-full !grid-cols-2 items-stretch gap-2 rounded-[30px] border border-[#e2e8f0] bg-white p-2 shadow-[0_8px_30px_rgba(15,23,42,0.06)] sm:!min-h-[72px] sm:!grid-cols-4 sm:items-center">
+          <TabsList className="!grid !h-auto !min-h-[136px] w-full !grid-cols-2 items-stretch gap-2 rounded-[30px] border border-[#d8d1c4] bg-white p-2 shadow-[0_8px_30px_rgba(15,23,42,0.06)] sm:!min-h-[72px] sm:!grid-cols-4 sm:items-center">
             <NavTab value="materials" icon={<Plus className="h-4 w-4" />} label="进货" sub="材料登记" />
             <NavTab value="inventory" icon={<Boxes className="h-4 w-4" />} label="库存" sub="管理与出售" />
             <NavTab value="exchange" icon={<Layers3 className="h-4 w-4" />} label="合成" sub="汰换记录" />
@@ -1538,7 +1539,7 @@ export default function CS2TradeRegisterPrototype() {
                   {materialForm.wearRange === "自定义" && <TextField label="自定义磨损 / 区间" placeholder="例如：0.163 或 0.15 - 0.17" value={materialForm.customWear} onChange={(value) => setMaterialForm({ ...materialForm, customWear: value })} />}
 
                   <SectionTitle title="批量进价" />
-                  <div className="space-y-2 rounded-[24px] border border-[#e2e8f0] bg-white/70 p-3">
+                  <div className="space-y-2 rounded-[24px] border border-[#d8d1c4] bg-[#fffdf8]/70 p-3">
                     {batchPrices.map((price, index) => (
                       <Input
                         key={index}
@@ -1562,11 +1563,11 @@ export default function CS2TradeRegisterPrototype() {
                             } else batchInputRefs.current[index + 1]?.focus();
                           }
                         }}
-                        className="h-11 rounded-2xl border-[#e2e8f0] bg-white"
+                        className="h-11 rounded-2xl border-[#d8d1c4] bg-white"
                       />
                     ))}
                   </div>
-                  <Button onClick={addBatchMaterials} disabled={isAddingMaterials} className="h-12 w-full rounded-2xl bg-[#1e293b] font-bold shadow-lg shadow-slate-900/10 hover:bg-[#334155]">
+                  <Button onClick={addBatchMaterials} disabled={isAddingMaterials} className="h-12 w-full rounded-2xl bg-[#194b45] font-bold shadow-lg shadow-slate-900/10 hover:bg-[#25645d]">
                     <Plus className="mr-2 h-4 w-4" />
                     {isAddingMaterials ? "添加中..." : "完成添加"}
                   </Button>
@@ -1576,7 +1577,7 @@ export default function CS2TradeRegisterPrototype() {
               <Panel title="材料记录" desc={`共 ${filteredMaterials.length} 条材料记录`} icon={<PackageCheck className="h-5 w-5" />} action={filteredMaterials.length > 10 ? <SoftButton onClick={() => setShowAllMaterials((prev) => !prev)}>{showAllMaterials ? "收起 ↑" : "查看全部 ↓"}</SoftButton> : null}>
                 <div className="mb-4 flex items-center gap-3">
                   <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8a7d6c]" />
                     <Input className="h-11 rounded-2xl bg-white pl-9" placeholder="搜索材料 / 平台 / 状态" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
                   </div>
                 </div>
@@ -1595,10 +1596,10 @@ export default function CS2TradeRegisterPrototype() {
                         const salePrice = item.salePrice ?? item.sale_price;
                         const profit = salePrice ? Number(salePrice) - Number(item.cost) : 0;
                         return (
-                          <TableRow key={item.id} className="h-14 transition-colors hover:bg-white/80">
+                          <TableRow key={item.id} className="h-14 transition-colors hover:bg-[#fffdf8]/80">
                             <TableCell className="pl-6">{item.date}</TableCell>
                             <TableCell><PlatformBadge platform={item.platform} /></TableCell>
-                            <TableCell className="truncate"><div className="truncate font-semibold text-slate-900">{item.name}</div><div className="text-xs text-slate-400">{item.mode === "batch" ? "批量新增" : "单条新增"}</div></TableCell>
+                            <TableCell className="truncate"><div className="truncate font-semibold text-[#1f2a2a]">{item.name}</div><div className="text-xs text-[#8a7d6c]">{item.mode === "batch" ? "批量新增" : "单条新增"}</div></TableCell>
                             <TableCell>{wearLevel}</TableCell>
                             <TableCell>{wearRange === "自定义" ? customWear || "自定义" : wearRange}</TableCell>
                             <TableCell className="pr-6">
@@ -1609,7 +1610,7 @@ export default function CS2TradeRegisterPrototype() {
                               )}
                             </TableCell>
                             <TableCell className="pr-6"><div className="flex w-full justify-end whitespace-nowrap tabular-nums">{salePrice ? money(salePrice) : "-"}</div></TableCell>
-                            <TableCell className="pr-6"><div className={cx("flex w-full justify-end whitespace-nowrap tabular-nums font-black", profit > 0 ? "text-[#10b981]" : profit < 0 ? "text-rose-600" : "text-slate-900")}>{money(profit)}</div></TableCell>
+                            <TableCell className="pr-6"><div className={cx("flex w-full justify-end whitespace-nowrap tabular-nums font-black", profit > 0 ? "text-[#10b981]" : profit < 0 ? "text-rose-600" : "text-[#1f2a2a]")}>{money(profit)}</div></TableCell>
                             <TableCell className="text-center"><StatusBadge status={item.status} /></TableCell>
                           </TableRow>
                         );
@@ -1652,15 +1653,15 @@ export default function CS2TradeRegisterPrototype() {
               {filteredInventory.length > 20 && !showAllInventory && <Hint>当前只展示前 20 条数据。可点击“查看全部”，或先筛选后再编辑。</Hint>}
 
               {editMode && (
-                <div className="mb-4 rounded-[24px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
+                <div className="mb-4 rounded-[24px] border border-[#d8d1c4] bg-white p-4 shadow-sm">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex items-center gap-3 text-sm text-slate-700">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950 text-white">
+                    <div className="flex items-center gap-3 text-sm text-[#5f574c]">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#194b45] text-white">
                         <Pencil className="h-4 w-4" />
                       </div>
                       <div>
-                        <div className="font-black text-slate-950">编辑模式</div>
-                        <div className="text-xs text-slate-500">
+                        <div className="font-black text-[#1f2a2a]">编辑模式</div>
+                        <div className="text-xs text-[#6b6257]">
                           已选 {selectedRows.length} 项 ｜ 求和 {money(selectedSum)} ｜ 平均 {money(selectedAvg)}
                         </div>
                       </div>
@@ -1677,7 +1678,7 @@ export default function CS2TradeRegisterPrototype() {
                       <Button type="button" variant="destructive" className="h-11 rounded-2xl" disabled={isDeletingSelected} onClick={deleteSelected}>
                         <Trash2 className="mr-2 h-4 w-4" />{isDeletingSelected ? "删除中..." : "删除"}
                       </Button>
-                      <Button type="button" className="h-11 rounded-2xl bg-[#1e293b]" disabled={isSavingInventoryEdits} onClick={saveInventoryEdits}>
+                      <Button type="button" className="h-11 rounded-2xl bg-[#194b45]" disabled={isSavingInventoryEdits} onClick={saveInventoryEdits}>
                         {isSavingInventoryEdits ? "保存中..." : "完成编辑"}
                       </Button>
                       <SoftButton onClick={() => { setEditMode(false); setSelectedIds([]); setInventoryEdits({}); }}>
@@ -1698,7 +1699,20 @@ export default function CS2TradeRegisterPrototype() {
                   </TableHeader>
                   <TableBody>
                     {visibleInventory.map((item) => (
-                      <TableRow key={item.id} className={cx("transition-colors hover:bg-white [&>td]:whitespace-nowrap [&>td]:px-2 [&>td]:py-2 [&>td]:text-sm", selectedIds.includes(item.id) && "bg-indigo-50/70 hover:bg-indigo-50")}> 
+                      <TableRow
+                        key={item.id}
+                        onClick={(e) => {
+                          if (!editMode) return;
+                          const target = e.target as HTMLElement;
+                          if (target.closest('input, button, a, textarea, select, [role="combobox"], [role="option"]')) return;
+                          toggleSelectRow(item.id, !selectedIds.includes(item.id));
+                        }}
+                        className={cx(
+                          "transition-colors hover:bg-[#fffdf8] [&>td]:whitespace-nowrap [&>td]:px-2 [&>td]:py-2 [&>td]:text-sm",
+                          editMode && "cursor-pointer",
+                          selectedIds.includes(item.id) && "bg-indigo-50/70 hover:bg-indigo-50"
+                        )}
+                      > 
                         {editMode && <TableCell className="text-center align-middle"><input type="checkbox" className="h-4 w-4 accent-indigo-600" checked={selectedIds.includes(item.id)} onChange={(e) => toggleSelectRow(item.id, e.target.checked)} /></TableCell>}
                         <TableCell className="pl-6 pr-4 align-middle">{formatInventoryDate(item.date, Boolean(inventoryFilters.date))}</TableCell>
                         <TableCell className="px-3 align-middle">{isRowEditable(item.id) && !item.isContract ? <Select value={item.platform} onValueChange={(value) => updateInventoryField(item, "platform", value)}><SelectTrigger className="h-9 w-[76px] rounded-xl bg-white text-sm"><SelectValue /></SelectTrigger><SelectContent>{platformOptions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select> : <PlatformBadge platform={item.platform} />}</TableCell>
@@ -1715,7 +1729,7 @@ export default function CS2TradeRegisterPrototype() {
                         </TableCell>
                         <TableCell className="text-center"><StatusBadge status={item.status} /></TableCell>
                         <TableCell className="text-center">{isRowEditable(item.id) ? <Input className="mx-auto h-10 w-[130px] rounded-xl bg-white text-center" type="date" value={item.saleDate ?? item.sale_date ?? ""} onChange={(e) => updateInventoryField(item, "saleDate", e.target.value)} /> : item.saleDate ?? item.sale_date ?? "-"}</TableCell>
-                        <TableCell className="pr-6"><div className={cx("flex w-full justify-end whitespace-nowrap tabular-nums font-black", Number(item.profit || 0) > 0 ? "text-[#10b981]" : Number(item.profit || 0) < 0 ? "text-[#ef4444]" : "text-slate-700")}>{item.profit === "" || item.profit === null || item.profit === undefined ? "-" : money(item.profit)}</div></TableCell>
+                        <TableCell className="pr-6"><div className={cx("flex w-full justify-end whitespace-nowrap tabular-nums font-black", Number(item.profit || 0) > 0 ? "text-[#10b981]" : Number(item.profit || 0) < 0 ? "text-[#ef4444]" : "text-[#5f574c]")}>{item.profit === "" || item.profit === null || item.profit === undefined ? "-" : money(item.profit)}</div></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1727,14 +1741,14 @@ export default function CS2TradeRegisterPrototype() {
           <TabsContent value="exchange" className="space-y-5">
             <div className="space-y-5">
               <Panel title="合炉录入" desc="记录 ECO 合炉或包炉结果。" icon={<Layers3 className="h-5 w-5" />}>
-                <div className="mb-5 grid grid-cols-2 gap-2 rounded-[26px] border border-[#e2e8f0] bg-white p-2 shadow-sm">
+                <div className="mb-5 grid grid-cols-2 gap-2 rounded-[26px] border border-[#d8d1c4] bg-white p-2 shadow-sm">
                   <button
                     type="button"
                     className={cx(
                       "h-12 rounded-2xl text-sm font-black transition-all",
                       exchangeMode === "ECO合炉"
-                        ? "bg-slate-950 text-white shadow-sm"
-                        : "bg-white text-slate-600 hover:bg-slate-100"
+                        ? "bg-[#194b45] text-white shadow-sm"
+                        : "bg-white text-[#5f574c] hover:bg-[#f4f1ea]"
                     )}
                     onClick={() => {
                       setShowAllEcoMaterials(false);
@@ -1748,8 +1762,8 @@ export default function CS2TradeRegisterPrototype() {
                     className={cx(
                       "h-12 rounded-2xl text-sm font-black transition-all",
                       exchangeMode === "包炉"
-                        ? "bg-slate-950 text-white shadow-sm"
-                        : "bg-white text-slate-600 hover:bg-slate-100"
+                        ? "bg-[#194b45] text-white shadow-sm"
+                        : "bg-white text-[#5f574c] hover:bg-[#f4f1ea]"
                     )}
                     onClick={() => {
                       setShowAllPackageMaterials(false);
@@ -1762,7 +1776,7 @@ export default function CS2TradeRegisterPrototype() {
 
                 {exchangeMode === "ECO合炉" ? (
                   <div className="space-y-5">
-                    <div className="overflow-hidden rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
+                    <div className="overflow-hidden rounded-[26px] border border-[#d8d1c4] bg-white p-4 shadow-sm">
                       <SectionTitle title="合同信息" />
                       <div className="mt-3 grid min-w-0 grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:max-w-full [&>div]:min-w-0 [&_input]:box-border [&_input]:h-11 [&_input]:w-full [&_input]:max-w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:max-w-full [&_button[role=combobox]]:min-w-0">
                         <FieldDate label="日期" value={contractForm.date} onChange={(value) => setContractForm({ ...contractForm, date: value })} />
@@ -1772,7 +1786,7 @@ export default function CS2TradeRegisterPrototype() {
                       </div>
                     </div>
 
-                    <div className="overflow-hidden rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
+                    <div className="overflow-hidden rounded-[26px] border border-[#d8d1c4] bg-white p-4 shadow-sm">
                       <SectionTitle title="产物信息" />
                       <div className="mt-3 grid min-w-0 grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:max-w-full [&>div]:min-w-0 [&_input]:box-border [&_input]:h-11 [&_input]:w-full [&_input]:max-w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:max-w-full [&_button[role=combobox]]:min-w-0">
                         <SelectField label="汰换结果" value={contractForm.result} options={["成功", "失败"]} onChange={syncContractResult} tone={contractForm.result === "成功" ? "success" : "danger"} />
@@ -1797,14 +1811,14 @@ export default function CS2TradeRegisterPrototype() {
 
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px] md:items-end [&>div]:w-full [&>div]:min-w-0">
                       <NumberField label="产物售价（可后补）" placeholder="548" value={contractForm.salePrice} onChange={(value) => setContractForm({ ...contractForm, salePrice: value })} />
-                      <Button onClick={addContract} disabled={isSavingEcoContract} className="h-12 rounded-2xl bg-slate-950 px-8 font-bold shadow-lg shadow-slate-900/10 hover:bg-[#334155]">
+                      <Button onClick={addContract} disabled={isSavingEcoContract} className="h-12 rounded-2xl bg-[#194b45] px-8 font-bold shadow-lg shadow-slate-900/10 hover:bg-[#25645d]">
                         {isSavingEcoContract ? "保存中..." : "保存 ECO 合炉记录"}
                       </Button>
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-5">
-                    <div className="overflow-hidden rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
+                    <div className="overflow-hidden rounded-[26px] border border-[#d8d1c4] bg-white p-4 shadow-sm">
                       <SectionTitle title="包炉信息" />
                       <div className="mt-3 grid min-w-0 grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:max-w-full [&>div]:min-w-0 [&_input]:box-border [&_input]:h-11 [&_input]:w-full [&_input]:max-w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:max-w-full [&_button[role=combobox]]:min-w-0">
                         <FieldDate label="日期" value={packageForm.date} onChange={(value) => setPackageForm({ ...packageForm, date: value })} />
@@ -1814,7 +1828,7 @@ export default function CS2TradeRegisterPrototype() {
                       </div>
                     </div>
 
-                    <div className="overflow-hidden rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
+                    <div className="overflow-hidden rounded-[26px] border border-[#d8d1c4] bg-white p-4 shadow-sm">
                       <SectionTitle title="产物信息" />
                       <div className="mt-3 grid min-w-0 grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:max-w-full [&>div]:min-w-0 [&_input]:box-border [&_input]:h-11 [&_input]:w-full [&_input]:max-w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:max-w-full [&_button[role=combobox]]:min-w-0">
                         <InfoBox label="参考价" value={money(packageCost)} compact />
@@ -1826,7 +1840,7 @@ export default function CS2TradeRegisterPrototype() {
 
                     <MaterialPicker title="包炉选材" filters={packageFilters} setFilters={setPackageFilters} nameInput={packageNameInput} setNameInput={setPackageNameInput} selectedCount={packageForm.selectedIds.length} hint="只允许 5 个或 10 个" shouldShow={shouldShowPackageMaterialList} items={filteredPackageMaterials} selectedIds={packageForm.selectedIds} onToggle={togglePackageMaterial} mode="package" />
 
-                    <Button onClick={addPackageContract} disabled={isSavingPackageContract || !((packageForm.selectedIds.length === 5 || packageForm.selectedIds.length === 10) && packageForm.outputName)} className="h-12 w-full rounded-2xl bg-slate-950 font-bold shadow-lg shadow-slate-900/10 hover:bg-[#334155]">
+                    <Button onClick={addPackageContract} disabled={isSavingPackageContract || !((packageForm.selectedIds.length === 5 || packageForm.selectedIds.length === 10) && packageForm.outputName)} className="h-12 w-full rounded-2xl bg-[#194b45] font-bold shadow-lg shadow-slate-900/10 hover:bg-[#25645d]">
                       {isSavingPackageContract ? "保存中..." : "保存包炉记录"}
                     </Button>
                   </div>
@@ -1865,7 +1879,7 @@ export default function CS2TradeRegisterPrototype() {
                         <button
                           type="button"
                           onClick={() => { setExchangeEditMode(false); setExchangeEdits({}); }}
-                          className="inline-flex h-11 items-center justify-center rounded-full border border-[#e2e8f0] bg-white px-5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-white"
+                          className="inline-flex h-11 items-center justify-center rounded-full border border-[#d8d1c4] bg-white px-5 text-sm font-bold text-[#5f574c] shadow-sm transition hover:bg-[#fffdf8]"
                         >
                           取消
                         </button>
@@ -1873,7 +1887,7 @@ export default function CS2TradeRegisterPrototype() {
                           type="button"
                           disabled={isSavingExchangeEdits}
                           onClick={saveExchangeEdits}
-                          className="inline-flex h-11 items-center justify-center rounded-full border border-slate-900 bg-slate-950 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#334155] disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex h-11 items-center justify-center rounded-full border border-[#194b45] bg-[#194b45] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#25645d] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {isSavingExchangeEdits ? "保存中..." : "保存编辑"}
                         </button>
@@ -1882,11 +1896,11 @@ export default function CS2TradeRegisterPrototype() {
                   </div>
                 }
               >
-                <div className="mb-4 rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
+                <div className="mb-4 rounded-[26px] border border-[#d8d1c4] bg-white p-4 shadow-sm">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8a7d6c]" />
                     <Input
-                      className="h-11 w-full rounded-2xl border-[#e2e8f0] bg-white pl-9 text-sm font-medium text-slate-800"
+                      className="h-11 w-full rounded-2xl border-[#d8d1c4] bg-white pl-9 text-sm font-medium text-[#1f2a2a]"
                       placeholder="搜索日期 / 类型 / 合同 / 产物 / 磨损 / 结果 / 状态"
                       value={exchangeKeyword}
                       onChange={(e) => setExchangeKeyword(e.target.value)}
@@ -1931,7 +1945,7 @@ export default function CS2TradeRegisterPrototype() {
 
                         return (
                           <React.Fragment key={item.id}>
-                            <TableRow className="transition-colors hover:bg-white/80">
+                            <TableRow className="transition-colors hover:bg-[#fffdf8]/80">
                               <TableCell>{exchangeEditMode ? <Input className="w-[145px] rounded-xl bg-white" type="date" value={item.date ?? ""} onChange={(e) => updateExchangeField(item, "date", e.target.value)} /> : item.date}</TableCell>
                               <TableCell>{exchangeEditMode ? <Select value={type} onValueChange={(value) => updateExchangeField(item, "type", value)}><SelectTrigger className="h-9 w-[76px] rounded-xl bg-white text-sm"><SelectValue /></SelectTrigger><SelectContent>{["ECO合炉", "包炉", "普通汰换"].map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select> : type}</TableCell>
                               <TableCell>{exchangeEditMode ? <Input className="w-[150px] rounded-xl bg-white" value={contractName ?? ""} onChange={(e) => updateExchangeField(item, "contractName", e.target.value)} /> : <span className="font-medium">{contractName}</span>}</TableCell>
@@ -1974,27 +1988,27 @@ export default function CS2TradeRegisterPrototype() {
                 }
               >
                 <div className="space-y-5">
-                  <div className="flex flex-col gap-4 rounded-[28px] border border-[#e2e8f0] bg-gradient-to-br from-white via-slate-50 to-white p-5 md:flex-row md:items-center md:justify-between">
+                  <div className="flex flex-col gap-4 rounded-[28px] border border-[#d8d1c4] bg-gradient-to-br from-white via-slate-50 to-white p-5 md:flex-row md:items-center md:justify-between">
                     <div>
-                      <div className="text-sm font-bold text-slate-400">CURRENT MONTH</div>
-                      <div className="mt-1 text-3xl font-black tracking-tight text-slate-950">
+                      <div className="text-sm font-bold text-[#8a7d6c]">CURRENT MONTH</div>
+                      <div className="mt-1 text-3xl font-black tracking-tight text-[#1f2a2a]">
                         {calendarYear} 年 {calendarMonth} 月
                       </div>
-                      <div className="mt-2 text-sm text-slate-500">
-                        当前选择：<span className="font-bold text-slate-800">{selectedDailyDate}</span>
+                      <div className="mt-2 text-sm text-[#6b6257]">
+                        当前选择：<span className="font-bold text-[#1f2a2a]">{selectedDailyDate}</span>
                       </div>
                     </div>
 
-                    <div className="rounded-[24px] border border-[#e2e8f0] bg-white px-5 py-4 shadow-sm">
-                      <div className="text-xs font-bold text-slate-400">本月累计</div>
+                    <div className="rounded-[24px] border border-[#d8d1c4] bg-white px-5 py-4 shadow-sm">
+                      <div className="text-xs font-bold text-[#8a7d6c]">本月累计</div>
                       <div className={cx("mt-1 text-2xl font-black tracking-tight tabular-nums", cumulativeProfit >= 0 ? "text-[#10b981]" : "text-rose-600")}>
                         {money(cumulativeProfit)}
                       </div>
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto rounded-[30px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
-                    <div className="mb-3 grid min-w-[720px] grid-cols-7 gap-2 text-center text-xs font-black text-slate-400">
+                  <div className="overflow-x-auto rounded-[30px] border border-[#d8d1c4] bg-white p-4 shadow-sm">
+                    <div className="mb-3 grid min-w-[720px] grid-cols-7 gap-2 text-center text-xs font-black text-[#8a7d6c]">
                       {["日", "一", "二", "三", "四", "五", "六"].map((d) => (
                         <div key={d}>{d}</div>
                       ))}
@@ -2003,7 +2017,7 @@ export default function CS2TradeRegisterPrototype() {
                     <div className="grid min-w-[720px] grid-cols-7 gap-2">
                       {monthCells.map((day, index) => {
                         if (!day) {
-                          return <div key={`empty-${index}`} className="h-[86px] rounded-[22px] bg-white/70" />;
+                          return <div key={`empty-${index}`} className="h-[86px] rounded-[22px] bg-[#fffdf8]/70" />;
                         }
 
                         const dateKey = `${calendarYear}-${String(calendarMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -2029,7 +2043,7 @@ export default function CS2TradeRegisterPrototype() {
                                   ? "border-emerald-100 bg-emerald-50/80 text-emerald-900"
                                   : hasValue && !positive
                                     ? "border-rose-100 bg-rose-50/80 text-rose-900"
-                                    : "border-[#e2e8f0] bg-white/80 text-slate-500 hover:bg-white"
+                                    : "border-[#d8d1c4] bg-[#fffdf8]/80 text-[#6b6257] hover:bg-[#fffdf8]"
                             )}
                           >
                             <div className="flex items-start justify-between gap-2">
@@ -2038,7 +2052,7 @@ export default function CS2TradeRegisterPrototype() {
                                 <span className={cx("h-2.5 w-2.5 rounded-full", positive ? "bg-emerald-500" : "bg-rose-500")} />
                               )}
                             </div>
-                            <div className={cx("mt-4 truncate text-xs font-black tabular-nums", !hasValue && "text-slate-400")}>
+                            <div className={cx("mt-4 truncate text-xs font-black tabular-nums", !hasValue && "text-[#8a7d6c]")}>
                               {hasValue ? money(value) : "—"}
                             </div>
                             </button>
@@ -2056,11 +2070,11 @@ export default function CS2TradeRegisterPrototype() {
               >
                 <div className="flex flex-col gap-4 xl:min-h-[720px]">
                   <div className="rounded-[30px] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-white p-6">
-                    <div className="text-sm font-bold text-slate-500">{selectedDailyDate}</div>
+                    <div className="text-sm font-bold text-[#6b6257]">{selectedDailyDate}</div>
                     <div className={cx("mt-2 text-5xl font-black tracking-tight tabular-nums", dailySummary.totalProfit >= 0 ? "text-[#10b981]" : "text-rose-600")}>
                       {money(dailySummary.totalProfit)}
                     </div>
-                    <div className="mt-2 text-xs font-semibold text-slate-400">当日净收益</div>
+                    <div className="mt-2 text-xs font-semibold text-[#8a7d6c]">当日净收益</div>
                   </div>
 
                   <div className="grid gap-3">
@@ -2069,11 +2083,11 @@ export default function CS2TradeRegisterPrototype() {
                     <IncomeLine label="开炉费" value={dailySummary.furnaceIncome} active={detailPanel === "furnace"} onClick={() => setDetailPanel("furnace")} />
                   </div>
 
-                  <div className="rounded-[26px] border border-[#e2e8f0] bg-white p-5">
+                  <div className="rounded-[26px] border border-[#d8d1c4] bg-white p-5">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-sm font-black text-slate-800">其他收入</div>
-                        <div className="mt-2 text-3xl font-black tracking-tight tabular-nums text-slate-950">
+                        <div className="text-sm font-black text-[#1f2a2a]">其他收入</div>
+                        <div className="mt-2 text-3xl font-black tracking-tight tabular-nums text-[#1f2a2a]">
                           {money(dailySummary.extraValue)}
                         </div>
                       </div>
@@ -2122,7 +2136,7 @@ export default function CS2TradeRegisterPrototype() {
                             setEditingExtraDate(null);
                             showToast("其他收益已保存");
                           }}
-                          className="h-11 rounded-2xl bg-[#1e293b] px-5"
+                          className="h-11 rounded-2xl bg-[#194b45] px-5"
                         >
                           完成
                         </Button>
@@ -2130,20 +2144,20 @@ export default function CS2TradeRegisterPrototype() {
                     )}
                   </div>
 
-                  <div className="rounded-[26px] border border-[#e2e8f0] bg-white p-5">
+                  <div className="rounded-[26px] border border-[#d8d1c4] bg-white p-5">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="flex items-center gap-2 text-sm font-black text-slate-800">
+                        <div className="flex items-center gap-2 text-sm font-black text-[#1f2a2a]">
                           <span>过往收益</span>
                           <button
                             type="button"
                             onClick={() => setShowPastProfit((prev) => !prev)}
-                            className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                            className="rounded-full p-1 text-[#8a7d6c] hover:bg-[#f4f1ea] hover:text-[#5f574c]"
                           >
                             {showPastProfit ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                           </button>
                         </div>
-                        <div className="mt-2 text-3xl font-black tracking-tight tabular-nums text-slate-950">
+                        <div className="mt-2 text-3xl font-black tracking-tight tabular-nums text-[#1f2a2a]">
                           {showPastProfit ? money(pastProfit) : "••••"}
                         </div>
                       </div>
@@ -2194,7 +2208,7 @@ export default function CS2TradeRegisterPrototype() {
                             setEditingPastProfit(false);
                             showToast("过往收益已保存");
                           }}
-                          className="h-11 rounded-2xl bg-[#1e293b] px-5"
+                          className="h-11 rounded-2xl bg-[#194b45] px-5"
                         >
                           完成
                         </Button>
@@ -2202,9 +2216,9 @@ export default function CS2TradeRegisterPrototype() {
                     )}
                   </div>
 
-                  <div className="mt-auto rounded-[26px] border border-[#e2e8f0] bg-white p-5">
-                    <div className="text-sm font-black text-slate-800">查看提示</div>
-                    <div className="mt-2 text-sm leading-6 text-slate-500">
+                  <div className="mt-auto rounded-[26px] border border-[#d8d1c4] bg-white p-5">
+                    <div className="text-sm font-black text-[#1f2a2a]">查看提示</div>
+                    <div className="mt-2 text-sm leading-6 text-[#6b6257]">
                       点击左侧日历中的任意日期，右侧会同步切换为该日期的收益构成。
                     </div>
                   </div>
@@ -2222,7 +2236,7 @@ function Toast({ toast }) {
   if (!toast.show) return null;
   const success = toast.type === "success";
   return (
-    <div className={cx("fixed right-5 top-5 z-[9999] flex items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-bold text-white shadow-[0_20px_60px_rgba(0,0,0,0.18)] backdrop-blur-xl animate-in fade-in slide-in-from-top-2", success ? "bg-[#1e293b]" : "bg-rose-600")}>
+    <div className={cx("fixed right-5 top-5 z-[9999] flex items-center gap-3 rounded-[20px] px-4 py-3 text-sm font-bold text-white shadow-[0_20px_60px_rgba(0,0,0,0.18)] backdrop-blur-xl animate-in fade-in slide-in-from-top-2", success ? "bg-[#194b45]" : "bg-rose-600")}>
       {success ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
       {toast.message}
     </div>
@@ -2230,13 +2244,14 @@ function Toast({ toast }) {
 }
 
 function HeaderPanel({ currentUser, membershipInfo, remainingDays, totalProfit, hidden, onToggleTotal, showUserPanel, setShowUserPanel, handleLogout }) {
-  const ANNOUNCEMENT_VERSION = "2026-05-04-ui-v4";
+  const ANNOUNCEMENT_VERSION = "2026-05-08-practical-v2";
   const ANNOUNCEMENT_LINES = [
-    "日进斗金 v4.0 升级如下：",
-    "1、系统 UI 整体换新；",
-    "2、库存管理数据可自由编辑；",
-    "3、汰换记录数据可自由编辑；",
-    "4、材料录入板块新增近 5 条材料记忆。",
+    "日进斗金本次更新：",
+    "1、整体换为暖灰、奶白、墨绿配色，长时间看数据更舒服；",
+    "2、顶部标题栏重做，会员、公告、总收益、用户中心和退出集中展示；",
+    "3、统计金额支持点击卡片或眼睛隐藏 / 显示，隐私操作更顺手；",
+    "4、ECO 合炉开炉费默认优化：失败自动为 0，切回成功自动恢复 10%；",
+    "5、库存编辑模式优化：点击整行即可选中，仍保留复选框精确操作。",
   ];
   const announcementKey = `announcement-read-${currentUser?.id || "guest"}-${ANNOUNCEMENT_VERSION}`;
   const [showAnnouncement, setShowAnnouncement] = React.useState(false);
@@ -2254,69 +2269,57 @@ function HeaderPanel({ currentUser, membershipInfo, remainingDays, totalProfit, 
   }
 
   return (
-    <div className="rounded-[30px] border border-[#e2e8f0] bg-white px-6 py-5 shadow-[0_14px_44px_rgba(15,23,42,0.055)] lg:px-7">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+    <div className="rounded-3xl border border-[#d8d1c4] bg-[#fffdf8] p-4 shadow-sm lg:p-5">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-1.5 rounded-full bg-gradient-to-b from-emerald-400 to-sky-500" />
-            <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">日进斗金 v4.0</h1>
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#194b45] text-white">
+              <LayoutDashboard className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-black tracking-[0.18em] text-[#8a7d6c]">WORKBENCH</div>
+              <h1 className="truncate text-2xl font-black tracking-tight text-[#1f2a2a] sm:text-3xl">日进斗金</h1>
+            </div>
           </div>
         </div>
 
-        <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:w-auto">
-          <div className="inline-flex h-11 w-full items-center rounded-2xl bg-emerald-50 px-4 text-sm font-bold text-emerald-700 sm:w-auto">
-            {remainingDays > 0 ? `会员剩余 ${remainingDays} 天` : "只读模式"}
+        <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:items-center xl:justify-end">
+          <div className="inline-flex h-10 items-center justify-center rounded-xl border border-[#c8e0d4] bg-[#edf8f2] px-3 text-sm font-bold text-[#166534]">
+            {remainingDays > 0 ? `会员 ${remainingDays} 天` : "只读模式"}
           </div>
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={openAnnouncement}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 text-sm font-bold text-amber-700 shadow-sm transition hover:bg-amber-100 sm:w-auto"
-            >
-              <Sparkles className="h-4 w-4" />
-              公告
-              {!announcementRead && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" />}
-            </button>
-
-            {showAnnouncement && (
-              <div className="absolute right-0 top-13 z-50 w-[calc(100vw-48px)] max-w-[340px] rounded-[24px] border border-[#e2e8f0] bg-white p-4 text-sm shadow-[0_18px_60px_rgba(15,23,42,0.16)]">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="font-black text-slate-950">系统公告</div>
-                  <button type="button" onClick={() => setShowAnnouncement(false)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="mt-3 space-y-1 rounded-[18px] bg-white p-3 text-sm leading-6 text-slate-600">
-                  {ANNOUNCEMENT_LINES.map((line) => (
-                    <div key={line}>{line}</div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={onToggleTotal}
-            className="inline-flex h-11 w-full items-center gap-3 rounded-2xl border border-[#e2e8f0] bg-white px-4 text-left shadow-sm transition hover:bg-white sm:w-auto"
-          >
-            <span className="text-sm font-semibold text-slate-500">总收益</span>
-            <span className="text-lg font-black tracking-tight tabular-nums text-slate-950">{hidden ? "••••" : money(totalProfit)}</span>
-            {hidden ? <EyeOff className="h-4 w-4 text-slate-400" /> : <Eye className="h-4 w-4 text-slate-400" />}
+          <button type="button" onClick={openAnnouncement} className="relative inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#e7d8b3] bg-[#fff8e5] px-3 text-sm font-bold text-[#8a5a00] transition hover:bg-[#fff2c7]">
+            <Sparkles className="h-4 w-4" /> 公告
+            {!announcementRead && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[#e11d48] ring-2 ring-white" />}
           </button>
 
-          <Button type="button" onClick={() => setShowUserPanel((prev) => !prev)} variant="outline" className="h-11 w-full rounded-2xl bg-white px-4 shadow-sm sm:w-auto">
-            <UserRound className="mr-2 h-4 w-4" />
-            {showUserPanel ? "收起" : "用户中心"}
+          <button type="button" onClick={onToggleTotal} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#d8d1c4] bg-white px-3 text-sm font-bold text-[#1f2a2a] transition hover:bg-[#f7f3ea]">
+            <span className="text-[#6b6257]">总收益</span>
+            <span className="tabular-nums">{hidden ? "••••" : money(totalProfit)}</span>
+            {hidden ? <EyeOff className="h-4 w-4 text-[#8a7d6c]" /> : <Eye className="h-4 w-4 text-[#8a7d6c]" />}
+          </button>
+
+          <Button type="button" onClick={() => setShowUserPanel((prev) => !prev)} variant="outline" className="h-10 rounded-xl border-[#d8d1c4] bg-white px-3 text-[#1f2a2a] hover:bg-[#f7f3ea]">
+            <UserRound className="mr-2 h-4 w-4" />{showUserPanel ? "收起用户" : "用户中心"}
           </Button>
 
-          <Button type="button" onClick={handleLogout} variant="outline" className="h-11 w-full rounded-2xl bg-white px-4 shadow-sm sm:w-auto">
-            <LogOut className="mr-2 h-4 w-4" />
-            退出
+          <Button type="button" onClick={handleLogout} variant="outline" className="h-10 rounded-xl border-[#d8d1c4] bg-white px-3 text-[#1f2a2a] hover:bg-[#f7f3ea]">
+            <LogOut className="mr-2 h-4 w-4" />退出
           </Button>
         </div>
       </div>
+
+      {showAnnouncement && (
+        <div className="mt-4 rounded-2xl border border-[#d8d1c4] bg-white p-4 text-sm shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div className="font-black text-[#1f2a2a]">系统公告</div>
+            <button type="button" onClick={() => setShowAnnouncement(false)} className="rounded-lg p-1 text-[#8a7d6c] hover:bg-[#f4f1ea] hover:text-[#1f2a2a]"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="mt-3 grid gap-1 text-[#5f574c]">
+            {ANNOUNCEMENT_LINES.map((line) => <div key={line}>{line}</div>)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2327,8 +2330,8 @@ function UserPanel(props) {
       <div className="grid gap-3 xl:grid-cols-[220px_180px_minmax(0,1fr)_320px]">
         <MiniInfo icon={<UserRound className="h-4 w-4" />} label="用户名" value={props.membershipInfo?.username || props.currentUser?.email?.split("@")[0] || "-"} />
         <MiniInfo icon={<ShieldCheck className="h-4 w-4" />} label="会员剩余" value={props.remainingDays > 0 ? `${props.remainingDays} 天` : "已过期"} />
-        <div className="rounded-[24px] border border-[#e2e8f0] bg-white p-4">
-          <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900"><LockKeyhole className="h-4 w-4" />修改密码</div>
+        <div className="rounded-[24px] border border-[#d8d1c4] bg-white p-4">
+          <div className="mb-3 flex items-center gap-2 text-sm font-bold text-[#1f2a2a]"><LockKeyhole className="h-4 w-4" />修改密码</div>
           <div className="grid gap-2 xl:grid-cols-[1fr_1fr_1fr_auto]">
             <Input type="password" placeholder="原密码" value={props.currentPassword ?? ""} onChange={(e) => props.setCurrentPassword(e.target.value)} className="h-10 rounded-xl" />
             <Input type="password" placeholder="新密码" value={props.newPassword ?? ""} onChange={(e) => props.setNewPassword(e.target.value)} className="h-10 rounded-xl" />
@@ -2336,8 +2339,8 @@ function UserPanel(props) {
             <Button onClick={props.handleChangePassword} className="h-10 rounded-xl px-4">修改</Button>
           </div>
         </div>
-        <div className="rounded-[24px] border border-[#e2e8f0] bg-white p-4">
-          <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900"><Sparkles className="h-4 w-4" />激活会员</div>
+        <div className="rounded-[24px] border border-[#d8d1c4] bg-white p-4">
+          <div className="mb-3 flex items-center gap-2 text-sm font-bold text-[#1f2a2a]"><Sparkles className="h-4 w-4" />激活会员</div>
           <div className="grid gap-2 xl:grid-cols-[1fr_auto]"><Input placeholder="输入激活码" value={props.activationCodeInput ?? ""} onChange={(e) => props.setActivationCodeInput(e.target.value)} className="h-10 rounded-xl" /><Button onClick={props.redeemActivationCode} className="h-10 rounded-xl px-4">激活</Button></div>
         </div>
       </div>
@@ -2347,14 +2350,14 @@ function UserPanel(props) {
 
 function Panel({ title, desc, icon, action, children }) {
   return (
-    <Card className="overflow-hidden rounded-[30px] border border-[#e2e8f0] bg-white shadow-[0_14px_44px_rgba(15,23,42,0.055)] transition-all hover:shadow-[0_18px_56px_rgba(15,23,42,0.075)]">
+    <Card className="overflow-hidden rounded-[30px] border border-[#d8d1c4] bg-white shadow-[0_14px_44px_rgba(15,23,42,0.055)] transition-all hover:shadow-[0_18px_56px_rgba(15,23,42,0.075)]">
       <CardHeader className="pb-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#1e293b] text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)]">{icon}</div>
+            <div className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#194b45] text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)]">{icon}</div>
             <div className="min-w-0">
-              <CardTitle className="text-xl font-black tracking-tight text-slate-950">{title}</CardTitle>
-              {desc ? <div className="mt-1 text-sm leading-6 text-slate-500">{desc}</div> : null}
+              <CardTitle className="text-xl font-black tracking-tight text-[#1f2a2a]">{title}</CardTitle>
+              {desc ? <div className="mt-1 text-sm leading-6 text-[#6b6257]">{desc}</div> : null}
             </div>
           </div>
           {action ? <div className="shrink-0">{action}</div> : null}
@@ -2372,9 +2375,8 @@ function StatCard({ title, value, hidden, icon, onToggle, tone = "slate" }) {
     indigo: "from-indigo-50 to-white text-indigo-600 border-indigo-100",
     sky: "from-sky-50 to-white text-sky-600 border-sky-100",
     amber: "from-amber-50 to-white text-amber-600 border-amber-100",
-    slate: "from-slate-50 to-white text-slate-600 border-slate-100",
+    slate: "from-slate-50 to-white text-[#5f574c] border-slate-100",
   };
-
   return (
     <Card
       role="button"
@@ -2394,23 +2396,23 @@ function StatCard({ title, value, hidden, icon, onToggle, tone = "slate" }) {
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-sm font-medium text-slate-500">
+            <div className="flex items-center gap-1.5 text-sm font-medium text-[#6b6257]">
               <span>{title}</span>
               <button
                 type="button"
-                className="rounded-full p-1 hover:bg-white"
+                className="rounded-full p-1 hover:bg-[#fffdf8]"
                 onClick={(event) => {
                   event.stopPropagation();
                   onToggle?.();
                 }}
                 aria-label={hidden ? `显示${title}` : `隐藏${title}`}
               >
-                {hidden ? <EyeOff className="h-3.5 w-3.5 text-slate-400" /> : <Eye className="h-3.5 w-3.5 text-slate-400" />}
+                {hidden ? <EyeOff className="h-3.5 w-3.5 text-[#8a7d6c]" /> : <Eye className="h-3.5 w-3.5 text-[#8a7d6c]" />}
               </button>
             </div>
-            <div className="mt-2 truncate text-2xl font-black tracking-tight tabular-nums text-slate-950">{hidden ? "••••" : value}</div>
+            <div className="mt-2 truncate text-2xl font-black tracking-tight tabular-nums text-[#1f2a2a]">{hidden ? "••••" : value}</div>
           </div>
-          <div className="rounded-2xl bg-white/80 p-2 shadow-sm">{icon}</div>
+          <div className="rounded-2xl bg-[#fffdf8]/80 p-2 shadow-sm">{icon}</div>
         </div>
       </CardContent>
     </Card>
@@ -2421,10 +2423,10 @@ function NavTab({ value, icon, label, sub }) {
   return (
     <TabsTrigger
       value={value}
-      className="group relative !m-0 !h-14 !w-full !min-w-0 rounded-[22px] border border-transparent bg-transparent px-3 text-slate-500 transition-all duration-200 hover:bg-white hover:text-slate-900 data-[state=active]:border-slate-950 data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none sm:px-4"
+      className="group relative !m-0 !h-14 !w-full !min-w-0 rounded-[22px] border border-transparent bg-transparent px-3 text-[#6b6257] transition-all duration-200 hover:bg-[#fffdf8] hover:text-[#1f2a2a] data-[state=active]:border-slate-950 data-[state=active]:bg-[#194b45] data-[state=active]:text-white data-[state=active]:shadow-none sm:px-4"
     >
       <div className="flex items-center justify-center gap-2.5 leading-none">
-        <span className="text-slate-400 group-data-[state=active]:text-white">
+        <span className="text-[#8a7d6c] group-data-[state=active]:text-white">
           {icon}
         </span>
         <span className="text-sm font-bold">{label}</span>
@@ -2436,8 +2438,8 @@ function NavTab({ value, icon, label, sub }) {
 
 function FilterBar({ children }) {
   return (
-    <div className="mb-4 rounded-[26px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
-      <div className="grid items-end gap-3 xl:grid-cols-[180px_minmax(260px,1fr)_132px_132px_132px] [&>div]:min-w-0 [&_input]:h-11 [&_input]:w-full [&_input]:rounded-2xl [&_input]:border-[#e2e8f0] [&_input]:bg-white [&_input]:px-4 [&_input]:text-sm [&_input]:font-medium [&_input]:text-slate-800 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:max-w-full [&_button[role=combobox]]:min-w-0 [&_button[role=combobox]]:rounded-2xl [&_button[role=combobox]]:border-[#e2e8f0] [&_button[role=combobox]]:bg-white [&_button[role=combobox]]:px-4 [&_button[role=combobox]]:text-sm [&_button[role=combobox]]:font-semibold [&_button[role=combobox]]:text-slate-700">
+    <div className="mb-4 rounded-[26px] border border-[#d8d1c4] bg-white p-4 shadow-sm">
+      <div className="grid items-end gap-3 xl:grid-cols-[180px_minmax(260px,1fr)_132px_132px_132px] [&>div]:min-w-0 [&_input]:h-11 [&_input]:w-full [&_input]:rounded-2xl [&_input]:border-[#d8d1c4] [&_input]:bg-white [&_input]:px-4 [&_input]:text-sm [&_input]:font-medium [&_input]:text-[#1f2a2a] [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:max-w-full [&_button[role=combobox]]:min-w-0 [&_button[role=combobox]]:rounded-2xl [&_button[role=combobox]]:border-[#d8d1c4] [&_button[role=combobox]]:bg-white [&_button[role=combobox]]:px-4 [&_button[role=combobox]]:text-sm [&_button[role=combobox]]:font-semibold [&_button[role=combobox]]:text-[#5f574c]">
         {children}
       </div>
     </div>
@@ -2447,7 +2449,7 @@ function FilterBar({ children }) {
 function ResponsiveTable({ children, maxHeight = "560px" }) {
   return (
     <div
-      className="w-full max-w-full overflow-auto rounded-[24px] border border-[#e2e8f0] bg-white [&_table]:min-w-[920px] sm:[&_table]:min-w-full"
+      className="w-full max-w-full overflow-auto rounded-[24px] border border-[#d8d1c4] bg-white [&_table]:min-w-[920px] sm:[&_table]:min-w-full"
       style={{ maxHeight }}
     >
       {children}
@@ -2456,14 +2458,14 @@ function ResponsiveTable({ children, maxHeight = "560px" }) {
 }
 
 function SectionTitle({ title }) {
-  return <div className="pt-1 text-xs font-black uppercase tracking-[0.18em] text-slate-400">{title}</div>;
+  return <div className="pt-1 text-xs font-black uppercase tracking-[0.18em] text-[#8a7d6c]">{title}</div>;
 }
 
 function FieldDate({ label, value, onChange, lang }) {
   return (
     <div className="w-full max-w-full min-w-0 space-y-2 overflow-hidden [&_input]:block [&_input]:w-full [&_input]:max-w-full [&_input]:min-w-0">
-      <Label className="text-xs font-bold text-slate-500">{label}</Label>
-      <Input type="date" value={value ?? ""} lang={lang} onChange={(e) => onChange(e.target.value)} className="box-border h-11 w-full max-w-full min-w-0 appearance-none rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-medium text-slate-800 transition focus:border-[#3b82f6] focus:ring-2 focus:ring-[#dbeafe] sm:text-sm" />
+      <Label className="text-xs font-bold text-[#6b6257]">{label}</Label>
+      <Input type="date" value={value ?? ""} lang={lang} onChange={(e) => onChange(e.target.value)} className="box-border h-11 w-full max-w-full min-w-0 appearance-none rounded-2xl border-[#d8d1c4] bg-white px-4 text-base font-medium text-[#1f2a2a] transition focus:border-[#194b45] focus:ring-2 focus:ring-[#edf8f2] sm:text-sm" />
     </div>
   );
 }
@@ -2471,8 +2473,8 @@ function FieldDate({ label, value, onChange, lang }) {
 function TextField({ label, value, onChange, placeholder }) {
   return (
     <div className="w-full min-w-0 space-y-2">
-      <Label className="text-xs font-bold text-slate-500">{label}</Label>
-      <Input value={value ?? ""} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className="box-border h-11 w-full max-w-full min-w-0 appearance-none rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-medium text-slate-800 transition focus:border-[#3b82f6] focus:ring-2 focus:ring-[#dbeafe] sm:text-sm" />
+      <Label className="text-xs font-bold text-[#6b6257]">{label}</Label>
+      <Input value={value ?? ""} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className="box-border h-11 w-full max-w-full min-w-0 appearance-none rounded-2xl border-[#d8d1c4] bg-white px-4 text-base font-medium text-[#1f2a2a] transition focus:border-[#194b45] focus:ring-2 focus:ring-[#edf8f2] sm:text-sm" />
     </div>
   );
 }
@@ -2480,8 +2482,8 @@ function TextField({ label, value, onChange, placeholder }) {
 function NumberField({ label, value, onChange, placeholder, disabled }) {
   return (
     <div className="w-full min-w-0 space-y-2">
-      <Label className="text-xs font-bold text-slate-500">{label}</Label>
-      <Input type="number" value={value ?? ""} placeholder={placeholder} disabled={disabled} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => onChange(e.target.value)} className="h-11 w-full min-w-0 rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-medium text-slate-800 transition focus:border-[#3b82f6] focus:ring-2 focus:ring-[#dbeafe] disabled:bg-slate-100 disabled:text-slate-400 sm:text-sm" />
+      <Label className="text-xs font-bold text-[#6b6257]">{label}</Label>
+      <Input type="number" value={value ?? ""} placeholder={placeholder} disabled={disabled} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => onChange(e.target.value)} className="h-11 w-full min-w-0 rounded-2xl border-[#d8d1c4] bg-white px-4 text-base font-medium text-[#1f2a2a] transition focus:border-[#194b45] focus:ring-2 focus:ring-[#edf8f2] disabled:bg-[#f4f1ea] disabled:text-[#8a7d6c] sm:text-sm" />
     </div>
   );
 }
@@ -2492,13 +2494,13 @@ function SelectField({ label, value, options, onChange, tone }) {
       ? "border-emerald-200 bg-emerald-50 text-emerald-700 focus:ring-emerald-100"
       : tone === "danger"
         ? "border-rose-200 bg-rose-50 text-rose-600 focus:ring-rose-100"
-        : "border-[#e2e8f0] bg-white text-slate-800 focus:ring-[#dbeafe]";
+        : "border-[#d8d1c4] bg-white text-[#1f2a2a] focus:ring-[#edf8f2]";
 
   return (
     <div className="w-full min-w-0 space-y-2">
-      <Label className="text-xs font-bold text-slate-500">{label}</Label>
+      <Label className="text-xs font-bold text-[#6b6257]">{label}</Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className={cx("h-11 w-full min-w-0 rounded-2xl px-4 text-base font-semibold shadow-none transition hover:bg-white focus:ring-2 sm:text-sm", toneClass)}>
+        <SelectTrigger className={cx("h-11 w-full min-w-0 rounded-2xl px-4 text-base font-semibold shadow-none transition hover:bg-[#fffdf8] focus:ring-2 sm:text-sm", toneClass)}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>{options.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
@@ -2510,8 +2512,8 @@ function SelectField({ label, value, options, onChange, tone }) {
 function TextFieldWithSuggest({ label, value, onChange, placeholder, suggestions, onPick }) {
   return (
     <div className="w-full min-w-0 space-y-2">
-      <Label className="text-xs font-bold text-slate-500">{label}</Label>
-      <Input placeholder={placeholder} value={value ?? ""} onChange={(e) => onChange(e.target.value)} className="box-border h-11 w-full max-w-full min-w-0 appearance-none rounded-2xl border-[#e2e8f0] bg-white px-4 text-base font-medium text-slate-800 transition focus:border-[#3b82f6] focus:ring-2 focus:ring-[#dbeafe] sm:text-sm" />
+      <Label className="text-xs font-bold text-[#6b6257]">{label}</Label>
+      <Input placeholder={placeholder} value={value ?? ""} onChange={(e) => onChange(e.target.value)} className="box-border h-11 w-full max-w-full min-w-0 appearance-none rounded-2xl border-[#d8d1c4] bg-white px-4 text-base font-medium text-[#1f2a2a] transition focus:border-[#194b45] focus:ring-2 focus:ring-[#edf8f2] sm:text-sm" />
       <SuggestionList items={suggestions} onPick={onPick} />
     </div>
   );
@@ -2519,24 +2521,24 @@ function TextFieldWithSuggest({ label, value, onChange, placeholder, suggestions
 
 function SuggestionList({ items, onPick }) {
   if (!items.length) return null;
-  return <div className="flex flex-wrap gap-2 rounded-[20px] border border-[#e2e8f0] bg-white p-3">{items.map((item) => <button key={item} type="button" className="rounded-full border border-[#e2e8f0] bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700" onClick={() => onPick(item)}>{item}</button>)}</div>;
+  return <div className="flex flex-wrap gap-2 rounded-[20px] border border-[#d8d1c4] bg-white p-3">{items.map((item) => <button key={item} type="button" className="rounded-full border border-[#d8d1c4] bg-white px-3 py-1 text-xs font-medium text-[#5f574c] hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700" onClick={() => onPick(item)}>{item}</button>)}</div>;
 }
 
 function InfoBox({ label, value, note, compact, valueClass }) {
   return (
     <div className="w-full min-w-0 space-y-2">
-      <Label className="text-xs font-bold text-slate-500">{label}</Label>
-      <div className="flex h-11 w-full min-w-0 items-center rounded-2xl border border-[#e2e8f0] bg-white px-4 text-sm font-medium text-slate-800">
-        <span className={cx("truncate font-black tabular-nums text-slate-950", valueClass)}>{value}</span>
+      <Label className="text-xs font-bold text-[#6b6257]">{label}</Label>
+      <div className="flex h-11 w-full min-w-0 items-center rounded-2xl border border-[#d8d1c4] bg-white px-4 text-sm font-medium text-[#1f2a2a]">
+        <span className={cx("truncate font-black tabular-nums text-[#1f2a2a]", valueClass)}>{value}</span>
       </div>
-      {note ? <div className="text-xs text-slate-400">{note}</div> : null}
+      {note ? <div className="text-xs text-[#8a7d6c]">{note}</div> : null}
     </div>
   );
 }
 
 function SummaryRow({ label, value, clickable, active, strong, onClick }) {
   return (
-    <button type="button" onClick={onClick} className={cx("flex w-full items-center justify-between rounded-[22px] border px-4 py-3 text-left transition-all", strong || active ? "border-slate-900 bg-[#1e293b] text-white shadow-lg shadow-slate-900/15" : "border-[#e2e8f0] bg-white text-slate-700 hover:bg-slate-100", clickable ? "cursor-pointer" : "cursor-default")}>
+    <button type="button" onClick={onClick} className={cx("flex w-full items-center justify-between rounded-[22px] border px-4 py-3 text-left transition-all", strong || active ? "border-[#194b45] bg-[#194b45] text-white shadow-lg shadow-slate-900/15" : "border-[#d8d1c4] bg-white text-[#5f574c] hover:bg-[#f4f1ea]", clickable ? "cursor-pointer" : "cursor-default")}>
       <span>{label}</span><span className="font-black tabular-nums">{value}</span>
     </button>
   );
@@ -2560,7 +2562,7 @@ function IconButton({ children, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#e2e8f0] bg-white text-slate-600 shadow-sm transition hover:bg-white"
+      className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#d8d1c4] bg-white text-[#5f574c] shadow-sm transition hover:bg-[#fffdf8]"
     >
       {children}
     </button>
@@ -2573,8 +2575,8 @@ function Hint({ children }) {
 
 function MiniMetric({ label, value, positive = true }) {
   return (
-    <div className="rounded-[20px] border border-[#e2e8f0] bg-white px-3 py-3 shadow-sm">
-      <div className="text-xs font-bold text-slate-400">{label}</div>
+    <div className="rounded-[20px] border border-[#d8d1c4] bg-white px-3 py-3 shadow-sm">
+      <div className="text-xs font-bold text-[#8a7d6c]">{label}</div>
       <div className={cx("mt-1 truncate text-sm font-black tabular-nums", positive ? "text-[#10b981]" : "text-rose-600")}>{value}</div>
     </div>
   );
@@ -2588,12 +2590,12 @@ function IncomeLine({ label, value, active, onClick }) {
       onClick={onClick}
       className={cx(
         "flex w-full items-center justify-between rounded-[20px] border px-4 py-3 text-left transition-all",
-        active ? "border-indigo-200 bg-indigo-50" : "border-[#e2e8f0] bg-white hover:bg-white"
+        active ? "border-indigo-200 bg-indigo-50" : "border-[#d8d1c4] bg-white hover:bg-[#fffdf8]"
       )}
     >
       <div className="flex items-center gap-3">
         <span className={cx("h-2.5 w-2.5 rounded-full", positive ? "bg-emerald-500" : "bg-rose-500")} />
-        <span className="font-bold text-slate-700">{label}</span>
+        <span className="font-bold text-[#5f574c]">{label}</span>
       </div>
       <span className={cx("font-black tabular-nums", positive ? "text-[#10b981]" : "text-rose-600")}>{money(value)}</span>
     </button>
@@ -2601,16 +2603,16 @@ function IncomeLine({ label, value, active, onClick }) {
 }
 
 function MiniInfo({ icon, label, value }) {
-  return <div className="rounded-[24px] border border-[#e2e8f0] bg-white/80 p-4"><div className="flex items-center gap-2 text-xs font-bold text-slate-500">{icon}{label}</div><div className="mt-3 truncate text-2xl font-black tracking-tight text-slate-900" title={value}>{value}</div></div>;
+  return <div className="rounded-[24px] border border-[#d8d1c4] bg-[#fffdf8]/80 p-4"><div className="flex items-center gap-2 text-xs font-bold text-[#6b6257]">{icon}{label}</div><div className="mt-3 truncate text-2xl font-black tracking-tight text-[#1f2a2a]" title={value}>{value}</div></div>;
 }
 
 function PlatformBadge({ platform }) {
-  return <span className="text-sm font-bold text-slate-700">{platform}</span>;
+  return <span className="text-sm font-bold text-[#5f574c]">{platform}</span>;
 }
 
 function StatusBadge({ status }) {
   const stock = status === "库存中";
-  return <Badge className={cx("rounded-full", stock ? "bg-amber-100 text-amber-800 hover:bg-amber-100" : "bg-[#1e293b] text-white hover:bg-[#1e293b]")}>{status}</Badge>;
+  return <Badge className={cx("rounded-full", stock ? "bg-amber-100 text-amber-800 hover:bg-amber-100" : "bg-[#194b45] text-white hover:bg-[#194b45]")}>{status}</Badge>;
 }
 
 function ResultBadge({ result }) {
@@ -2620,11 +2622,11 @@ function ResultBadge({ result }) {
 
 function MaterialPicker({ title, filters, setFilters, nameInput, setNameInput, selectedCount, hint, shouldShow, items, selectedIds, onToggle, materialSalePrices, onSalePriceChange, mode }) {
   return (
-    <div className="space-y-3 rounded-[24px] border border-[#e2e8f0] bg-white/70 p-4">
-      <div className="flex items-center justify-between gap-3"><div className="text-sm font-black text-slate-800">{title}</div><div className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">已选 {selectedCount} ｜ {hint}</div></div>
+    <div className="space-y-3 rounded-[24px] border border-[#d8d1c4] bg-[#fffdf8]/70 p-4">
+      <div className="flex items-center justify-between gap-3"><div className="text-sm font-black text-[#1f2a2a]">{title}</div><div className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#6b6257]">已选 {selectedCount} ｜ {hint}</div></div>
       <div className="grid min-w-0 gap-3 md:grid-cols-2 [&>div]:min-w-0"><FieldDate label="日期筛选" value={filters.date} onChange={(value) => setFilters({ ...filters, date: value })} /><TextField label="名称筛选" placeholder="输入名称关键词" value={nameInput} onChange={setNameInput} /></div>
-      {!shouldShow ? <div className="rounded-[20px] border border-dashed border-slate-300 bg-white px-4 py-5 text-center text-sm text-slate-400">请先输入日期或名称筛选，再选择材料。</div> : (
-        <div className="max-h-80 space-y-2 overflow-auto rounded-[22px] border border-[#e2e8f0] bg-white p-3">
+      {!shouldShow ? <div className="rounded-[20px] border border-dashed border-slate-300 bg-white px-4 py-5 text-center text-sm text-[#8a7d6c]">请先输入日期或名称筛选，再选择材料。</div> : (
+        <div className="max-h-80 space-y-2 overflow-auto rounded-[22px] border border-[#d8d1c4] bg-white p-3">
           {items.map((item) => {
             const active = selectedIds.includes(item.id);
             const wearLevel = item.wearLevel ?? item.wear_level;
@@ -2632,12 +2634,12 @@ function MaterialPicker({ title, filters, setFilters, nameInput, setNameInput, s
             const customWear = item.customWear ?? item.custom_wear;
             const materialSalePrice = materialSalePrices?.[item.id] ?? "";
             return (
-              <div key={item.id} className={cx("rounded-[18px] border px-3 py-3 transition-all", active ? "border-emerald-200 bg-emerald-50 text-slate-900 shadow-sm" : "border-[#e2e8f0] bg-white hover:bg-white")}>
+              <div key={item.id} className={cx("rounded-[18px] border px-3 py-3 transition-all", active ? "border-emerald-200 bg-emerald-50 text-[#1f2a2a] shadow-sm" : "border-[#d8d1c4] bg-white hover:bg-[#fffdf8]")}>
                 <button type="button" className="flex w-full items-center justify-between gap-3 text-left" onClick={() => onToggle(item.id)}>
-                  <div className="min-w-0"><div className="truncate font-bold">{item.name}</div><div className={cx("text-sm", active ? "text-emerald-700" : "text-slate-500")}>{[item.date, item.platform, wearLevel, wearRange === "自定义" ? customWear || "自定义" : wearRange].filter(Boolean).join(" • ")}</div><div className={cx("mt-1 text-xs", active ? "text-emerald-700" : "text-slate-500")}>成本：{money(item.cost)}</div></div>
+                  <div className="min-w-0"><div className="truncate font-bold">{item.name}</div><div className={cx("text-sm", active ? "text-emerald-700" : "text-[#6b6257]")}>{[item.date, item.platform, wearLevel, wearRange === "自定义" ? customWear || "自定义" : wearRange].filter(Boolean).join(" • ")}</div><div className={cx("mt-1 text-xs", active ? "text-emerald-700" : "text-[#6b6257]")}>成本：{money(item.cost)}</div></div>
                   <div className="shrink-0 rounded-full bg-white px-3 py-1 text-sm font-black shadow-sm">{active ? "已选" : "选择"}</div>
                 </button>
-                {mode === "eco" && active && <div className="mt-3"><Label className="text-xs font-bold text-emerald-800">材料售价</Label><Input type="number" placeholder="请输入这条材料的售价" value={materialSalePrice} onClick={(e) => e.stopPropagation()} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => onSalePriceChange(item.id, e.target.value)} className="mt-2 rounded-2xl bg-white text-slate-900" /></div>}
+                {mode === "eco" && active && <div className="mt-3"><Label className="text-xs font-bold text-emerald-800">材料售价</Label><Input type="number" placeholder="请输入这条材料的售价" value={materialSalePrice} onClick={(e) => e.stopPropagation()} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => onSalePriceChange(item.id, e.target.value)} className="mt-2 rounded-2xl bg-white text-[#1f2a2a]" /></div>}
               </div>
             );
           })}
