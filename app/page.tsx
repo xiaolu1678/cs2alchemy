@@ -894,7 +894,16 @@ export default function CS2TradeRegisterPrototype() {
   };
 
   const syncContractResult = (nextResult) => {
-    setContractForm((prev) => ({ ...prev, result: nextResult, furnaceRatePercent: nextResult === "成功" ? prev.furnaceRatePercent || "10" : "0" }));
+    setContractForm((prev) => ({
+      ...prev,
+      result: nextResult,
+      furnaceRatePercent:
+        nextResult === "成功"
+          ? prev.result === "失败"
+            ? "10"
+            : prev.furnaceRatePercent || "10"
+          : "0",
+    }));
   };
 
   const addContract = async () => {
@@ -1572,10 +1581,10 @@ export default function CS2TradeRegisterPrototype() {
                   </div>
                 </div>
                 <ResponsiveTable>
-                  <Table className="min-w-[1720px] table-fixed">
+                  <Table className="w-full min-w-[1180px] table-fixed xl:min-w-0">
                     <TableHeader className="sticky top-0 z-10 bg-white">
                       <TableRow>
-                        <TableHead className="w-[120px] pl-6">日期</TableHead><TableHead className="w-[90px]">平台</TableHead><TableHead className="w-[170px]">材料</TableHead><TableHead className="w-[130px]">磨损等级</TableHead><TableHead className="w-[130px]">磨损区间</TableHead><TableHead className="w-[120px] pr-6"><div className="flex w-full justify-end">进价</div></TableHead><TableHead className="w-[120px] pr-6"><div className="flex w-full justify-end">售价</div></TableHead><TableHead className="w-[120px] pr-6"><div className="flex w-full justify-end">毛利</div></TableHead><TableHead className="w-[100px] text-center">状态</TableHead>
+                        <TableHead className="w-[120px] pl-6">日期</TableHead><TableHead className="w-[78px]">平台</TableHead><TableHead className="w-[170px]">材料</TableHead><TableHead className="w-[120px]">磨损等级</TableHead><TableHead className="w-[120px]">磨损区间</TableHead><TableHead className="w-[120px] pr-6"><div className="flex w-full justify-end">进价</div></TableHead><TableHead className="w-[100px] pr-4"><div className="flex w-full justify-end">售价</div></TableHead><TableHead className="w-[120px] pr-6"><div className="flex w-full justify-end">毛利</div></TableHead><TableHead className="w-[100px] text-center">状态</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1680,22 +1689,22 @@ export default function CS2TradeRegisterPrototype() {
               )}
 
               <ResponsiveTable maxHeight="640px">
-                <Table className="min-w-[1720px] table-fixed">
+                <Table className="w-full min-w-[1180px] table-fixed xl:min-w-0">
                   <TableHeader className="sticky top-0 z-10 bg-white">
                     <TableRow>
                       {editMode && <TableHead className="w-[56px] text-center">选择</TableHead>}
-                      <TableHead className="w-[190px] pl-6">日期</TableHead><TableHead className="w-[150px]">平台</TableHead><TableHead className="w-[220px]">名称</TableHead><TableHead className="w-[180px]">磨损等级</TableHead><TableHead className="w-[190px]">磨损区间</TableHead><TableHead className="w-[150px] pr-6"><div className="flex w-full justify-end">参考价/成本</div></TableHead><TableHead className="w-[150px] pr-6"><div className="flex w-full justify-end">售价</div></TableHead><TableHead className="w-[130px] text-center">状态</TableHead><TableHead className="w-[170px] text-center">出售日期</TableHead><TableHead className="w-[140px] pr-6"><div className="flex w-full justify-end">利润</div></TableHead>
+                      <TableHead className="w-[96px] pl-4">日期</TableHead><TableHead className="w-[78px]">平台</TableHead><TableHead className="w-[150px]">名称</TableHead><TableHead className="w-[120px]">磨损等级</TableHead><TableHead className="w-[120px]">磨损区间</TableHead><TableHead className="w-[115px] pr-4"><div className="flex w-full justify-end">参考价/成本</div></TableHead><TableHead className="w-[100px] pr-4"><div className="flex w-full justify-end">售价</div></TableHead><TableHead className="w-[86px] text-center">状态</TableHead><TableHead className="w-[120px] text-center">出售日期</TableHead><TableHead className="w-[100px] pr-4"><div className="flex w-full justify-end">利润</div></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {visibleInventory.map((item) => (
-                      <TableRow key={item.id} className={cx("transition-colors hover:bg-white [&>td]:whitespace-nowrap", selectedIds.includes(item.id) && "bg-indigo-50/70 hover:bg-indigo-50")}> 
+                      <TableRow key={item.id} className={cx("transition-colors hover:bg-white [&>td]:whitespace-nowrap [&>td]:px-2 [&>td]:py-2 [&>td]:text-sm", selectedIds.includes(item.id) && "bg-indigo-50/70 hover:bg-indigo-50")}> 
                         {editMode && <TableCell className="text-center align-middle"><input type="checkbox" className="h-4 w-4 accent-indigo-600" checked={selectedIds.includes(item.id)} onChange={(e) => toggleSelectRow(item.id, e.target.checked)} /></TableCell>}
                         <TableCell className="pl-6 pr-4 align-middle">{formatInventoryDate(item.date, Boolean(inventoryFilters.date))}</TableCell>
-                        <TableCell className="px-3 align-middle">{isRowEditable(item.id) && !item.isContract ? <Select value={item.platform} onValueChange={(value) => updateInventoryField(item, "platform", value)}><SelectTrigger className="h-10 w-[120px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{platformOptions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select> : <PlatformBadge platform={item.platform} />}</TableCell>
-                        <TableCell className="px-3 align-middle">{isRowEditable(item.id) ? <Input className="h-10 w-[190px] rounded-xl bg-white" value={item.name} onChange={(e) => updateInventoryField(item, "name", e.target.value)} /> : <span className="font-medium">{item.name}</span>}</TableCell>
-                        <TableCell>{isRowEditable(item.id) ? <Select value={item.wearLevel} onValueChange={(value) => updateInventoryField(item, "wearLevel", value)}><SelectTrigger className="h-10 w-[140px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{wearLevelOptions.map((level) => <SelectItem key={level} value={level}>{level}</SelectItem>)}</SelectContent></Select> : item.wearLevel}</TableCell>
-                        <TableCell>{isRowEditable(item.id) ? <Select value={item.wearRange} onValueChange={(value) => updateInventoryField(item, "wearRange", value)}><SelectTrigger className="h-10 w-[150px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{(wearRanges[item.wearLevel] || [item.wearRange]).map((range) => <SelectItem key={range} value={range}>{range}</SelectItem>)}</SelectContent></Select> : item.wearRange}</TableCell>
+                        <TableCell className="px-3 align-middle">{isRowEditable(item.id) && !item.isContract ? <Select value={item.platform} onValueChange={(value) => updateInventoryField(item, "platform", value)}><SelectTrigger className="h-9 w-[76px] rounded-xl bg-white text-sm"><SelectValue /></SelectTrigger><SelectContent>{platformOptions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select> : <PlatformBadge platform={item.platform} />}</TableCell>
+                        <TableCell className="px-3 align-middle">{isRowEditable(item.id) ? <Input className="h-9 w-[138px] rounded-xl bg-white px-2 text-sm" value={item.name} onChange={(e) => updateInventoryField(item, "name", e.target.value)} /> : <span className="font-medium">{item.name}</span>}</TableCell>
+                        <TableCell>{isRowEditable(item.id) ? <Select value={item.wearLevel} onValueChange={(value) => updateInventoryField(item, "wearLevel", value)}><SelectTrigger className="h-9 w-[108px] rounded-xl bg-white text-sm"><SelectValue /></SelectTrigger><SelectContent>{wearLevelOptions.map((level) => <SelectItem key={level} value={level}>{level}</SelectItem>)}</SelectContent></Select> : item.wearLevel}</TableCell>
+                        <TableCell>{isRowEditable(item.id) ? <Select value={item.wearRange} onValueChange={(value) => updateInventoryField(item, "wearRange", value)}><SelectTrigger className="h-9 w-[112px] rounded-xl bg-white text-sm"><SelectValue /></SelectTrigger><SelectContent>{(wearRanges[item.wearLevel] || [item.wearRange]).map((range) => <SelectItem key={range} value={range}>{range}</SelectItem>)}</SelectContent></Select> : item.wearRange}</TableCell>
                         <TableCell className="pr-6"><div className="flex w-full justify-end whitespace-nowrap tabular-nums">{money(item.cost)}</div></TableCell>
                         <TableCell className="pr-6">
                           {isRowEditable(item.id) ? (
@@ -1924,7 +1933,7 @@ export default function CS2TradeRegisterPrototype() {
                           <React.Fragment key={item.id}>
                             <TableRow className="transition-colors hover:bg-white/80">
                               <TableCell>{exchangeEditMode ? <Input className="w-[145px] rounded-xl bg-white" type="date" value={item.date ?? ""} onChange={(e) => updateExchangeField(item, "date", e.target.value)} /> : item.date}</TableCell>
-                              <TableCell>{exchangeEditMode ? <Select value={type} onValueChange={(value) => updateExchangeField(item, "type", value)}><SelectTrigger className="h-10 w-[112px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{["ECO合炉", "包炉", "普通汰换"].map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select> : type}</TableCell>
+                              <TableCell>{exchangeEditMode ? <Select value={type} onValueChange={(value) => updateExchangeField(item, "type", value)}><SelectTrigger className="h-9 w-[76px] rounded-xl bg-white text-sm"><SelectValue /></SelectTrigger><SelectContent>{["ECO合炉", "包炉", "普通汰换"].map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select> : type}</TableCell>
                               <TableCell>{exchangeEditMode ? <Input className="w-[150px] rounded-xl bg-white" value={contractName ?? ""} onChange={(e) => updateExchangeField(item, "contractName", e.target.value)} /> : <span className="font-medium">{contractName}</span>}</TableCell>
                               <TableCell>{exchangeEditMode ? <Input className="w-[170px] rounded-xl bg-white" value={outputName ?? ""} onChange={(e) => updateExchangeField(item, "outputName", e.target.value)} /> : <span className="font-medium">{outputName}</span>}</TableCell>
                               <TableCell>{exchangeEditMode ? <Select value={outputWearLevel} onValueChange={(value) => updateExchangeField(item, "outputWearLevel", value)}><SelectTrigger className="w-[140px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{wearLevelOptions.map((level) => <SelectItem key={level} value={level}>{level}</SelectItem>)}</SelectContent></Select> : outputWearLevel}</TableCell>
@@ -2365,10 +2374,44 @@ function StatCard({ title, value, hidden, icon, onToggle, tone = "slate" }) {
     amber: "from-amber-50 to-white text-amber-600 border-amber-100",
     slate: "from-slate-50 to-white text-slate-600 border-slate-100",
   };
+
   return (
-    <Card className={cx("overflow-hidden rounded-[26px] border bg-gradient-to-br shadow-[0_10px_34px_rgba(15,23,42,0.055)] transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_44px_rgba(15,23,42,0.08)]", toneMap[tone])}>
+    <Card
+      role="button"
+      tabIndex={0}
+      onClick={onToggle}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onToggle?.();
+        }
+      }}
+      className={cx(
+        "overflow-hidden rounded-[26px] border bg-gradient-to-br shadow-[0_10px_34px_rgba(15,23,42,0.055)] transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_44px_rgba(15,23,42,0.08)] active:scale-[0.99] cursor-pointer select-none",
+        toneMap[tone]
+      )}
+    >
       <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-1.5 text-sm font-medium text-slate-500"><span>{title}</span><button type="button" className="rounded-full p-1 hover:bg-white" onClick={onToggle}>{hidden ? <EyeOff className="h-3.5 w-3.5 text-slate-400" /> : <Eye className="h-3.5 w-3.5 text-slate-400" />}</button></div><div className="mt-2 truncate text-2xl font-black tracking-tight tabular-nums text-slate-950">{hidden ? "••••" : value}</div></div><div className="rounded-2xl bg-white/80 p-2 shadow-sm">{icon}</div></div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 text-sm font-medium text-slate-500">
+              <span>{title}</span>
+              <button
+                type="button"
+                className="rounded-full p-1 hover:bg-white"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggle?.();
+                }}
+                aria-label={hidden ? `显示${title}` : `隐藏${title}`}
+              >
+                {hidden ? <EyeOff className="h-3.5 w-3.5 text-slate-400" /> : <Eye className="h-3.5 w-3.5 text-slate-400" />}
+              </button>
+            </div>
+            <div className="mt-2 truncate text-2xl font-black tracking-tight tabular-nums text-slate-950">{hidden ? "••••" : value}</div>
+          </div>
+          <div className="rounded-2xl bg-white/80 p-2 shadow-sm">{icon}</div>
+        </div>
       </CardContent>
     </Card>
   );
