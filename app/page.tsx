@@ -83,6 +83,11 @@ const wearRanges = {
 };
 
 const PAST_PROFIT_DATE = "1900-01-01";
+const USERNAME_RE = /^[A-Za-z0-9]{3,20}$/;
+
+function normalizeUsername(value: string) {
+  return String(value || "").trim().toLowerCase();
+}
 
 function cx(...classes) {
   return classes.filter(Boolean).join(" ");
@@ -102,6 +107,15 @@ function getRemainingDays(expiresAt?: string | null) {
 function computeFurnaceFee(refPrice, result, furnaceRatePercent) {
   const rate = result === "成功" ? Number(furnaceRatePercent || 10) / 100 : 0;
   return Number((refPrice * rate).toFixed(2));
+}
+
+function getAutoFurnaceRate(result, type) {
+  return result === "成功" && type !== "包炉" ? 0.1 : 0;
+}
+
+function computeAutoFurnaceFee(refPrice, result, type) {
+  const rate = getAutoFurnaceRate(result, type);
+  return Number((Number(refPrice || 0) * rate).toFixed(2));
 }
 
 function formatInventoryDate(date, showFullDate) {
@@ -230,6 +244,8 @@ export default function CS2TradeRegisterPrototype() {
   const [membershipInfo, setMembershipInfo] = useState<any>(null);
   const [isReadonlyMode, setIsReadonlyMode] = useState(false);
   const [showUserPanel, setShowUserPanel] = useState(false);
+  const [usernameInput, setUsernameInput] = useState("");
+  const [isSavingUsername, setIsSavingUsername] = useState(false);
   const [activationCodeInput, setActivationCodeInput] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -351,9 +367,66 @@ export default function CS2TradeRegisterPrototype() {
     checkAuth();
   }, [router]);
 
+  React.useEffect(() => {
+    setUsernameInput(normalizeUsername(membershipInfo?.username || currentUser?.email?.split("@")[0] || ""));
+  }, [membershipInfo?.username, currentUser?.email]);
+
   async function handleLogout() {
     await supabase.auth.signOut();
     router.replace("/login");
+  }
+
+  async function handleUpdateUsername() {
+    if (isSavingUsername) return;
+
+    const username = normalizeUsername(usernameInput);
+
+    if (!USERNAME_RE.test(username)) {
+      showToast("用户名只能使用英文字母和数字，长度 3-20 位", "error");
+      return;
+    }
+
+    if (username === normalizeUsername(membershipInfo?.username || "")) {
+      showToast("用户名没有变化");
+      return;
+    }
+
+    setIsSavingUsername(true);
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+
+      if (sessionError || !token) {
+        showToast("登录状态已失效，请重新登录", "error");
+        return;
+      }
+
+      const res = await fetch("/api/update-username", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ username }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        showToast(result?.error || "修改用户名失败", "error");
+        return;
+      }
+
+      setMembershipInfo((prev) => ({ ...(prev || {}), ...(result?.membership || {}), username }));
+      setCurrentUser((prev) => ({ ...(prev || {}), email: result?.email || prev?.email }));
+      setUsernameInput(username);
+      showToast(result?.message || "用户名修改成功");
+    } catch (err) {
+      console.error("修改用户名失败", err);
+      showToast("修改用户名请求失败", "error");
+    } finally {
+      setIsSavingUsername(false);
+    }
   }
 
   async function handleChangePassword() {
@@ -627,7 +700,7 @@ export default function CS2TradeRegisterPrototype() {
         id: `contract-${item.id}`,
         date: item.date,
         platform: "汰换",
-        name: outputName,
+        name: outputName || "未开炉暂存",
         wearLevel: outputWearLevel || "-",
         saleDate: item.saleDate ?? item.sale_date ?? "",
         wearRange: outputWearRange === "自定义" ? outputCustomWear || "自定义" : outputWearRange || "-",
@@ -903,7 +976,60 @@ export default function CS2TradeRegisterPrototype() {
             : "10"
           : "0";
 
+      if (nextResult === "未开炉") {
+        return {
+          ...prev,
+          result: nextResult,
+          furnaceRatePercent: "0",
+          outputName: "",
+          outputWearLevel: "待定",
+          outputWearRange: "待定",
+          outputCustomWear: "",
+          refPrice: "",
+          salePrice: "",
+        };
+      }
+
+      if (prev.result === "未开炉" && nextResult !== "未开炉") {
+        return {
+          ...prev,
+          result: nextResult,
+          furnaceRatePercent: nextRate,
+          outputWearLevel: "久经沙场",
+          outputWearRange: "0.15 - 0.18",
+          outputCustomWear: "",
+        };
+      }
+
       return { ...prev, result: nextResult, furnaceRatePercent: nextRate };
+    });
+  };
+
+  const syncPackageResult = (nextResult) => {
+    setPackageForm((prev) => {
+      if (nextResult === "未开炉") {
+        return {
+          ...prev,
+          result: nextResult,
+          outputName: "",
+          outputWearLevel: "待定",
+          outputWearRange: "待定",
+          outputCustomWear: "",
+          salePrice: "",
+        };
+      }
+
+      if (prev.result === "未开炉" && nextResult !== "未开炉") {
+        return {
+          ...prev,
+          result: nextResult,
+          outputWearLevel: "久经沙场",
+          outputWearRange: "0.15 - 0.18",
+          outputCustomWear: "",
+        };
+      }
+
+      return { ...prev, result: nextResult };
     });
   };
 
@@ -920,7 +1046,8 @@ export default function CS2TradeRegisterPrototype() {
         showToast("当前用户不存在，请重新登录", "error");
         return;
       }
-      if (!contractForm.outputName?.trim()) {
+      const isPendingFurnace = contractForm.result === "未开炉";
+      if (!isPendingFurnace && !contractForm.outputName?.trim()) {
         showToast("请输入产物名称", "error");
         return;
       }
@@ -931,22 +1058,22 @@ export default function CS2TradeRegisterPrototype() {
         return value === "" || value === null || value === undefined;
       });
 
-      if (missingMaterialSalePrice) {
+      if (!isPendingFurnace && missingMaterialSalePrice) {
         showToast("请把每个已选材料的售价都填写完整", "error");
         return;
       }
 
       const refPrice = Number(contractForm.refPrice || 0);
-      const furnaceFee = computeFurnaceFee(refPrice, contractForm.result, contractForm.furnaceRatePercent);
-      const salePrice = contractForm.salePrice === "" ? null : Number(contractForm.salePrice);
+      const furnaceFee = isPendingFurnace ? 0 : computeFurnaceFee(refPrice, contractForm.result, contractForm.furnaceRatePercent);
+      const salePrice = isPendingFurnace || contractForm.salePrice === "" ? null : Number(contractForm.salePrice);
 
       const payload = {
         date: contractForm.date,
         type: "ECO合炉",
-        contract_name: contractForm.contractName || "ECO合炉记录",
-        output_name: contractForm.outputName,
-        output_wear_level: contractForm.outputWearLevel,
-        output_wear_range: contractForm.outputWearRange,
+        contract_name: contractForm.contractName || (isPendingFurnace ? "未开炉暂存" : "ECO合炉记录"),
+        output_name: contractForm.outputName?.trim() || (isPendingFurnace ? "未开炉暂存" : ""),
+        output_wear_level: contractForm.outputWearLevel || (isPendingFurnace ? "待定" : "久经沙场"),
+        output_wear_range: contractForm.outputWearRange || (isPendingFurnace ? "待定" : "0.15 - 0.18"),
         output_custom_wear: contractForm.outputCustomWear || null,
         ref_price: refPrice,
         result: contractForm.result,
@@ -954,7 +1081,7 @@ export default function CS2TradeRegisterPrototype() {
         furnace_fee: furnaceFee,
         sale_price: salePrice,
         sale_date: salePrice === null ? null : contractForm.date,
-        status: salePrice === null ? "库存中" : "已售出",
+        status: isPendingFurnace ? "未开炉" : salePrice === null ? "库存中" : "已售出",
         user_id: currentUser.id,
       };
 
@@ -965,7 +1092,9 @@ export default function CS2TradeRegisterPrototype() {
       }
 
       const materialUpdateResults = await Promise.all(selectedMaterials.map(async (item) => {
-        const materialSalePrice = Number(contractForm.materialSalePrices?.[item.id] || 0);
+        const materialSalePrice = isPendingFurnace
+          ? Number(contractForm.materialSalePrices?.[item.id] || item.cost || 0)
+          : Number(contractForm.materialSalePrices?.[item.id] || 0);
         const { error } = await updateMaterialById(item.id, { status: "已售出", sale_price: materialSalePrice, sale_date: contractForm.date });
         return { item, error };
       }));
@@ -978,7 +1107,9 @@ export default function CS2TradeRegisterPrototype() {
 
       setMaterials((prev) => prev.map((item) => {
         if (!contractForm.selectedIds.includes(item.id)) return item;
-        const materialSalePrice = Number(contractForm.materialSalePrices?.[item.id] || 0);
+        const materialSalePrice = isPendingFurnace
+          ? Number(contractForm.materialSalePrices?.[item.id] || item.cost || 0)
+          : Number(contractForm.materialSalePrices?.[item.id] || 0);
         return { ...item, status: "已售出", sale_price: materialSalePrice, salePrice: materialSalePrice, sale_date: contractForm.date, saleDate: contractForm.date };
       }));
 
@@ -999,7 +1130,7 @@ export default function CS2TradeRegisterPrototype() {
       }
 
       setContractForm((prev) => ({ ...prev, contractName: "", outputName: "", outputWearLevel: "久经沙场", outputWearRange: "0.15 - 0.18", outputCustomWear: "", refPrice: "", result: "成功", furnaceRatePercent: "10", salePrice: "", selectedIds: [], materialSalePrices: {} }));
-      showToast("ECO 合炉记录已保存");
+      showToast(isPendingFurnace ? "ECO 合炉已暂存，开炉后可在汰换记录里编辑" : "ECO 合炉记录已保存");
     } finally {
       setIsSavingEcoContract(false);
     }
@@ -1031,6 +1162,29 @@ export default function CS2TradeRegisterPrototype() {
     });
   };
 
+  const clearEcoMaterials = () => {
+    if (!contractForm.selectedIds.length) return;
+
+    setContractForm((prev) => ({
+      ...prev,
+      selectedIds: [],
+      materialSalePrices: {},
+    }));
+
+    showToast("已清空 ECO 合炉选材");
+  };
+
+  const clearPackageMaterials = () => {
+    if (!packageForm.selectedIds.length) return;
+
+    setPackageForm((prev) => ({
+      ...prev,
+      selectedIds: [],
+    }));
+
+    showToast("已清空包炉选材");
+  };
+
   const addPackageContract = async () => {
     if (isSavingPackageContract) return;
     if (isReadonlyMode) {
@@ -1050,7 +1204,8 @@ export default function CS2TradeRegisterPrototype() {
         showToast("包炉材料数量只能是 5 个或 10 个", "error");
         return;
       }
-      if (!packageForm.outputName?.trim()) {
+      const isPendingPackage = packageForm.result === "未开炉";
+      if (!isPendingPackage && !packageForm.outputName?.trim()) {
         showToast("请输入产物名称", "error");
         return;
       }
@@ -1062,15 +1217,15 @@ export default function CS2TradeRegisterPrototype() {
       }
 
       const today = packageForm.date || new Date().toISOString().slice(0, 10);
-      const salePrice = packageForm.salePrice === "" || packageForm.salePrice === null || packageForm.salePrice === undefined ? null : Number(packageForm.salePrice);
+      const salePrice = isPendingPackage || packageForm.salePrice === "" || packageForm.salePrice === null || packageForm.salePrice === undefined ? null : Number(packageForm.salePrice);
 
       const contractPayload = {
         date: packageForm.date,
         type: "包炉",
-        contract_name: packageForm.contractName || "包炉记录",
-        output_name: packageForm.outputName,
-        output_wear_level: packageForm.outputWearLevel,
-        output_wear_range: packageForm.outputWearRange,
+        contract_name: packageForm.contractName || (isPendingPackage ? "未开炉暂存" : "包炉记录"),
+        output_name: packageForm.outputName?.trim() || (isPendingPackage ? "未开炉暂存" : ""),
+        output_wear_level: packageForm.outputWearLevel || (isPendingPackage ? "待定" : "久经沙场"),
+        output_wear_range: packageForm.outputWearRange || (isPendingPackage ? "待定" : "0.15 - 0.18"),
         output_custom_wear: packageForm.outputCustomWear || null,
         ref_price: Number(packageCost.toFixed(2)),
         result: packageForm.result,
@@ -1078,7 +1233,7 @@ export default function CS2TradeRegisterPrototype() {
         furnace_fee: 0,
         sale_price: salePrice,
         sale_date: salePrice === null ? null : packageForm.date,
-        status: salePrice === null ? "库存中" : "已售出",
+        status: isPendingPackage ? "未开炉" : salePrice === null ? "库存中" : "已售出",
         user_id: currentUser.id,
       };
 
@@ -1123,7 +1278,7 @@ export default function CS2TradeRegisterPrototype() {
       }
 
       setPackageForm((prev) => ({ ...prev, contractName: "", outputName: "", outputWearLevel: "久经沙场", outputWearRange: "0.15 - 0.18", outputCustomWear: "", result: "成功", salePrice: "", selectedIds: [] }));
-      showToast("包炉记录已保存");
+      showToast(isPendingPackage ? "包炉已暂存，开炉后可在汰换记录里编辑" : "包炉记录已保存");
     } finally {
       setIsSavingPackageContract(false);
     }
@@ -1341,10 +1496,66 @@ export default function CS2TradeRegisterPrototype() {
           next.outputWearRange = value;
           next.output_wear_range = value;
         }
-        if (field === "result") next.result = value;
+        if (field === "result") {
+          next.result = value;
+
+          if (value === "未开炉") {
+            next.status = "未开炉";
+            next.furnaceRate = 0;
+            next.furnace_rate = 0;
+            next.furnaceFee = 0;
+            next.furnace_fee = 0;
+            next.salePrice = "";
+            next.sale_price = null;
+            next.saleDate = "";
+            next.sale_date = null;
+          } else if (value === "成功") {
+            const type = next.type ?? item.type ?? "ECO合炉";
+            const refPrice = next.refPrice ?? next.ref_price ?? item.refPrice ?? item.ref_price ?? 0;
+            const autoRate = getAutoFurnaceRate("成功", type);
+            const autoFee = computeAutoFurnaceFee(refPrice, "成功", type);
+            const currentSalePrice = next.salePrice ?? next.sale_price;
+
+            next.furnaceRate = autoRate;
+            next.furnace_rate = autoRate;
+            next.furnaceFee = autoFee;
+            next.furnace_fee = autoFee;
+            next.status = currentSalePrice === "" || currentSalePrice === null || currentSalePrice === undefined ? "库存中" : "已售出";
+          } else {
+            const currentSalePrice = next.salePrice ?? next.sale_price;
+            next.furnaceRate = 0;
+            next.furnace_rate = 0;
+            next.furnaceFee = 0;
+            next.furnace_fee = 0;
+            next.status = currentSalePrice === "" || currentSalePrice === null || currentSalePrice === undefined ? "库存中" : "已售出";
+          }
+        }
         if (field === "refPrice") {
           next.refPrice = value;
           next.ref_price = value === "" ? null : Number(value);
+
+          if (next.result === "成功") {
+            const type = next.type ?? item.type ?? "ECO合炉";
+            const autoRate = getAutoFurnaceRate("成功", type);
+            const autoFee = computeAutoFurnaceFee(value, "成功", type);
+            next.furnaceRate = autoRate;
+            next.furnace_rate = autoRate;
+            next.furnaceFee = autoFee;
+            next.furnace_fee = autoFee;
+          }
+        }
+        if (field === "type") {
+          next.type = value;
+
+          if (next.result === "成功") {
+            const refPrice = next.refPrice ?? next.ref_price ?? item.refPrice ?? item.ref_price ?? 0;
+            const autoRate = getAutoFurnaceRate("成功", value);
+            const autoFee = computeAutoFurnaceFee(refPrice, "成功", value);
+            next.furnaceRate = autoRate;
+            next.furnace_rate = autoRate;
+            next.furnaceFee = autoFee;
+            next.furnace_fee = autoFee;
+          }
         }
         if (field === "furnaceFee") {
           next.furnaceFee = value;
@@ -1355,9 +1566,11 @@ export default function CS2TradeRegisterPrototype() {
           next.salePrice = value;
           next.sale_price = salePrice;
           next.status = salePrice === null ? "库存中" : "已售出";
+          patch.status = next.status;
           if (salePrice !== null && !(next.saleDate ?? next.sale_date)) {
             next.saleDate = next.date;
             next.sale_date = next.date;
+            patch.saleDate = next.date;
           }
         }
         if (field === "saleDate") {
@@ -1370,13 +1583,45 @@ export default function CS2TradeRegisterPrototype() {
       })
     );
 
-    setExchangeEdits((prev) => ({
-      ...prev,
-      [id]: {
-        ...(prev[id] || {}),
-        ...patch,
-      },
-    }));
+    setExchangeEdits((prev) => {
+      const existingPatch = prev[id] || {};
+      const nextPatch = { ...patch };
+      const nextType = field === "type" ? value : existingPatch.type ?? item.type ?? "ECO合炉";
+      const nextResult = field === "result" ? value : existingPatch.result ?? item.result;
+      const nextRefPrice = field === "refPrice" ? value : existingPatch.refPrice ?? item.refPrice ?? item.ref_price ?? 0;
+
+      if (field === "result" && value === "未开炉") {
+        nextPatch.status = "未开炉";
+        nextPatch.furnaceRate = 0;
+        nextPatch.furnaceFee = 0;
+        nextPatch.salePrice = "";
+        nextPatch.saleDate = "";
+      }
+
+      if (nextResult === "成功" && ["result", "refPrice", "type"].includes(field)) {
+        const autoRate = getAutoFurnaceRate("成功", nextType);
+        const autoFee = computeAutoFurnaceFee(nextRefPrice, "成功", nextType);
+        const salePrice = existingPatch.salePrice ?? item.salePrice ?? item.sale_price;
+        nextPatch.furnaceRate = autoRate;
+        nextPatch.furnaceFee = autoFee;
+        nextPatch.status = salePrice === "" || salePrice === null || salePrice === undefined ? "库存中" : "已售出";
+      }
+
+      if (field === "result" && value === "失败") {
+        const salePrice = existingPatch.salePrice ?? item.salePrice ?? item.sale_price;
+        nextPatch.furnaceRate = 0;
+        nextPatch.furnaceFee = 0;
+        nextPatch.status = salePrice === "" || salePrice === null || salePrice === undefined ? "库存中" : "已售出";
+      }
+
+      return {
+        ...prev,
+        [id]: {
+          ...existingPatch,
+          ...nextPatch,
+        },
+      };
+    });
   }
 
   async function saveExchangeEdits() {
@@ -1406,6 +1651,7 @@ export default function CS2TradeRegisterPrototype() {
           if (patch.outputWearRange !== undefined) payload.output_wear_range = patch.outputWearRange;
           if (patch.result !== undefined) payload.result = patch.result;
           if (patch.refPrice !== undefined) payload.ref_price = patch.refPrice === "" || patch.refPrice === null || patch.refPrice === undefined ? null : Number(patch.refPrice);
+          if (patch.furnaceRate !== undefined) payload.furnace_rate = patch.furnaceRate === "" || patch.furnaceRate === null || patch.furnaceRate === undefined ? 0 : Number(patch.furnaceRate);
           if (patch.furnaceFee !== undefined) payload.furnace_fee = patch.furnaceFee === "" || patch.furnaceFee === null || patch.furnaceFee === undefined ? null : Number(patch.furnaceFee);
           if (patch.salePrice !== undefined) {
             const salePrice = patch.salePrice === "" || patch.salePrice === null || patch.salePrice === undefined ? null : Number(patch.salePrice);
@@ -1483,6 +1729,10 @@ export default function CS2TradeRegisterPrototype() {
             membershipInfo={membershipInfo}
             currentUser={currentUser}
             remainingDays={remainingDays}
+            usernameInput={usernameInput}
+            setUsernameInput={setUsernameInput}
+            isSavingUsername={isSavingUsername}
+            handleUpdateUsername={handleUpdateUsername}
             currentPassword={currentPassword}
             setCurrentPassword={setCurrentPassword}
             newPassword={newPassword}
@@ -1647,7 +1897,7 @@ export default function CS2TradeRegisterPrototype() {
                 <TextField label="名称" placeholder="搜索名称关键词" value={inventoryNameInput} onChange={setInventoryNameInput} />
                 <SelectField label="平台" value={inventoryFilters.platform} options={["全部", ...inventoryPlatformOptions]} onChange={(value) => setInventoryFilters({ ...inventoryFilters, platform: value })} />
                 <SelectField label="磨损等级" value={inventoryFilters.wearLevel} options={["全部", ...wearLevelOptions]} onChange={(value) => setInventoryFilters({ ...inventoryFilters, wearLevel: value })} />
-                <SelectField label="库存状态" value={inventoryFilters.status} options={["全部", "库存中", "已售出"]} onChange={(value) => setInventoryFilters({ ...inventoryFilters, status: value })} />
+                <SelectField label="库存状态" value={inventoryFilters.status} options={["全部", "库存中", "已售出", "未开炉"]} onChange={(value) => setInventoryFilters({ ...inventoryFilters, status: value })} />
               </FilterBar>
 
               {filteredInventory.length > 20 && !showAllInventory && <Hint>当前只展示前 20 条数据。可点击“查看全部”，或先筛选后再编辑。</Hint>}
@@ -1717,8 +1967,8 @@ export default function CS2TradeRegisterPrototype() {
                         <TableCell className="pl-6 pr-4 align-middle">{formatInventoryDate(item.date, Boolean(inventoryFilters.date))}</TableCell>
                         <TableCell className="px-3 align-middle">{isRowEditable(item.id) && !item.isContract ? <Select value={item.platform} onValueChange={(value) => updateInventoryField(item, "platform", value)}><SelectTrigger className="h-9 w-[76px] rounded-xl bg-white text-sm"><SelectValue /></SelectTrigger><SelectContent>{platformOptions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select> : <PlatformBadge platform={item.platform} />}</TableCell>
                         <TableCell className="px-3 align-middle">{isRowEditable(item.id) ? <Input className="h-9 w-[138px] rounded-xl bg-white px-2 text-sm" value={item.name} onChange={(e) => updateInventoryField(item, "name", e.target.value)} /> : <span className="font-medium">{item.name}</span>}</TableCell>
-                        <TableCell>{isRowEditable(item.id) ? <Select value={item.wearLevel} onValueChange={(value) => updateInventoryField(item, "wearLevel", value)}><SelectTrigger className="h-9 w-[108px] rounded-xl bg-white text-sm"><SelectValue /></SelectTrigger><SelectContent>{wearLevelOptions.map((level) => <SelectItem key={level} value={level}>{level}</SelectItem>)}</SelectContent></Select> : item.wearLevel}</TableCell>
-                        <TableCell>{isRowEditable(item.id) ? <Select value={item.wearRange} onValueChange={(value) => updateInventoryField(item, "wearRange", value)}><SelectTrigger className="h-9 w-[112px] rounded-xl bg-white text-sm"><SelectValue /></SelectTrigger><SelectContent>{(wearRanges[item.wearLevel] || [item.wearRange]).map((range) => <SelectItem key={range} value={range}>{range}</SelectItem>)}</SelectContent></Select> : item.wearRange}</TableCell>
+                        <TableCell>{isRowEditable(item.id) ? <Select value={item.wearLevel} onValueChange={(value) => updateInventoryField(item, "wearLevel", value)}><SelectTrigger className="h-9 w-[108px] rounded-xl bg-white text-sm"><SelectValue /></SelectTrigger><SelectContent>{(item.wearLevel === "待定" ? ["待定", ...wearLevelOptions] : wearLevelOptions).map((level) => <SelectItem key={level} value={level}>{level}</SelectItem>)}</SelectContent></Select> : item.wearLevel}</TableCell>
+                        <TableCell>{isRowEditable(item.id) ? <Select value={item.wearRange} onValueChange={(value) => updateInventoryField(item, "wearRange", value)}><SelectTrigger className="h-9 w-[112px] rounded-xl bg-white text-sm"><SelectValue /></SelectTrigger><SelectContent>{(item.wearLevel === "待定" ? ["待定"] : (wearRanges[item.wearLevel] || [item.wearRange])).map((range) => <SelectItem key={range} value={range}>{range}</SelectItem>)}</SelectContent></Select> : item.wearRange}</TableCell>
                         <TableCell className="pr-6"><div className="flex w-full justify-end whitespace-nowrap tabular-nums">{money(item.cost)}</div></TableCell>
                         <TableCell className="pr-6">
                           {isRowEditable(item.id) ? (
@@ -1789,10 +2039,10 @@ export default function CS2TradeRegisterPrototype() {
                     <div className="overflow-hidden rounded-[26px] border border-[#d8d1c4] bg-white p-4 shadow-sm">
                       <SectionTitle title="产物信息" />
                       <div className="mt-3 grid min-w-0 grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:max-w-full [&>div]:min-w-0 [&_input]:box-border [&_input]:h-11 [&_input]:w-full [&_input]:max-w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:max-w-full [&_button[role=combobox]]:min-w-0">
-                        <SelectField label="汰换结果" value={contractForm.result} options={["成功", "失败"]} onChange={syncContractResult} tone={contractForm.result === "成功" ? "success" : "danger"} />
-                        <NumberField label="开炉费比例" value={contractForm.result === "失败" ? "0" : contractForm.furnaceRatePercent} onChange={(value) => setContractForm({ ...contractForm, furnaceRatePercent: value })} disabled={contractForm.result === "失败"} />
-                        <SelectField label="产物磨损等级" value={contractForm.outputWearLevel} options={wearLevelOptions} onChange={(value) => setContractForm({ ...contractForm, outputWearLevel: value, outputWearRange: wearRanges[value][0], outputCustomWear: "" })} />
-                        <SelectField label="产物磨损区间" value={contractForm.outputWearRange} options={currentContractWearRanges} onChange={(value) => setContractForm({ ...contractForm, outputWearRange: value, outputCustomWear: value === "自定义" ? contractForm.outputCustomWear : "" })} />
+                        <SelectField label="汰换结果" value={contractForm.result} options={["成功", "失败", "未开炉"]} onChange={syncContractResult} tone={contractForm.result === "成功" ? "success" : contractForm.result === "未开炉" ? "warning" : "danger"} />
+                        <NumberField label="开炉费比例" value={contractForm.result === "成功" ? contractForm.furnaceRatePercent : "0"} onChange={(value) => setContractForm({ ...contractForm, furnaceRatePercent: value })} disabled={contractForm.result !== "成功"} />
+                        <SelectField label="产物磨损等级" value={contractForm.outputWearLevel} options={contractForm.outputWearLevel === "待定" ? ["待定", ...wearLevelOptions] : wearLevelOptions} onChange={(value) => setContractForm({ ...contractForm, outputWearLevel: value, outputWearRange: value === "待定" ? "待定" : wearRanges[value][0], outputCustomWear: "" })} placeholder="未开炉可不填" />
+                        <SelectField label="产物磨损区间" value={contractForm.outputWearRange} options={contractForm.outputWearLevel === "待定" ? ["待定"] : currentContractWearRanges} onChange={(value) => setContractForm({ ...contractForm, outputWearRange: value, outputCustomWear: value === "自定义" ? contractForm.outputCustomWear : "" })} placeholder="未开炉可不填" />
                       </div>
                       {contractForm.outputWearRange === "自定义" && (
                         <div className="mt-3">
@@ -1801,7 +2051,23 @@ export default function CS2TradeRegisterPrototype() {
                       )}
                     </div>
 
-                    <MaterialPicker title="ECO 合炉选材" filters={ecoFilters} setFilters={setEcoFilters} nameInput={ecoNameInput} setNameInput={setEcoNameInput} selectedCount={contractForm.selectedIds.length} hint="最多 10 个材料" shouldShow={shouldShowEcoMaterialList} items={filteredEcoMaterials} selectedIds={contractForm.selectedIds} onToggle={toggleEcoMaterial} materialSalePrices={contractForm.materialSalePrices} onSalePriceChange={updateEcoMaterialSalePrice} mode="eco" />
+                    <MaterialPicker
+                      title="ECO 合炉选材"
+                      filters={ecoFilters}
+                      setFilters={setEcoFilters}
+                      nameInput={ecoNameInput}
+                      setNameInput={setEcoNameInput}
+                      selectedCount={contractForm.selectedIds.length}
+                      hint="最多 10 个材料"
+                      shouldShow={shouldShowEcoMaterialList}
+                      items={filteredEcoMaterials}
+                      selectedIds={contractForm.selectedIds}
+                      onToggle={toggleEcoMaterial}
+                      onClear={clearEcoMaterials}
+                      materialSalePrices={contractForm.materialSalePrices}
+                      onSalePriceChange={updateEcoMaterialSalePrice}
+                      mode="eco"
+                    />
 
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-3 [&>div]:w-full [&>div]:min-w-0">
                       <InfoBox label="材料成本" value={money(ecoCost)} />
@@ -1824,7 +2090,7 @@ export default function CS2TradeRegisterPrototype() {
                         <FieldDate label="日期" value={packageForm.date} onChange={(value) => setPackageForm({ ...packageForm, date: value })} />
                         <TextField label="包炉名称" placeholder="例如：P250 包炉" value={packageForm.contractName} onChange={(value) => setPackageForm({ ...packageForm, contractName: value })} />
                         <TextField label="产物名称" placeholder="例如：AK-47 | 火蛇" value={packageForm.outputName} onChange={(value) => setPackageForm({ ...packageForm, outputName: value })} />
-                        <SelectField label="包炉结果" value={packageForm.result} options={["成功", "失败"]} onChange={(value) => setPackageForm({ ...packageForm, result: value })} tone={packageForm.result === "成功" ? "success" : "danger"} />
+                        <SelectField label="包炉结果" value={packageForm.result} options={["成功", "失败", "未开炉"]} onChange={syncPackageResult} tone={packageForm.result === "成功" ? "success" : packageForm.result === "未开炉" ? "warning" : "danger"} />
                       </div>
                     </div>
 
@@ -1832,15 +2098,29 @@ export default function CS2TradeRegisterPrototype() {
                       <SectionTitle title="产物信息" />
                       <div className="mt-3 grid min-w-0 grid-cols-1 items-end gap-3 md:grid-cols-2 xl:grid-cols-4 [&>div]:w-full [&>div]:max-w-full [&>div]:min-w-0 [&_input]:box-border [&_input]:h-11 [&_input]:w-full [&_input]:max-w-full [&_input]:min-w-0 [&_button[role=combobox]]:h-11 [&_button[role=combobox]]:w-full [&_button[role=combobox]]:max-w-full [&_button[role=combobox]]:min-w-0">
                         <InfoBox label="参考价" value={money(packageCost)} compact />
-                        <SelectField label="产物磨损等级" value={packageForm.outputWearLevel} options={wearLevelOptions} onChange={(value) => setPackageForm({ ...packageForm, outputWearLevel: value, outputWearRange: wearRanges[value][0], outputCustomWear: "" })} />
-                        <SelectField label="产物磨损区间" value={packageForm.outputWearRange} options={currentPackageWearRanges} onChange={(value) => setPackageForm({ ...packageForm, outputWearRange: value, outputCustomWear: value === "自定义" ? packageForm.outputCustomWear : "" })} />
+                        <SelectField label="产物磨损等级" value={packageForm.outputWearLevel} options={packageForm.outputWearLevel === "待定" ? ["待定", ...wearLevelOptions] : wearLevelOptions} onChange={(value) => setPackageForm({ ...packageForm, outputWearLevel: value, outputWearRange: value === "待定" ? "待定" : wearRanges[value][0], outputCustomWear: "" })} placeholder="未开炉可不填" />
+                        <SelectField label="产物磨损区间" value={packageForm.outputWearRange} options={packageForm.outputWearLevel === "待定" ? ["待定"] : currentPackageWearRanges} onChange={(value) => setPackageForm({ ...packageForm, outputWearRange: value, outputCustomWear: value === "自定义" ? packageForm.outputCustomWear : "" })} placeholder="未开炉可不填" />
                         <NumberField label="产物售价（可后补）" placeholder="548" value={packageForm.salePrice} onChange={(value) => setPackageForm({ ...packageForm, salePrice: value })} />
                       </div>
                     </div>
 
-                    <MaterialPicker title="包炉选材" filters={packageFilters} setFilters={setPackageFilters} nameInput={packageNameInput} setNameInput={setPackageNameInput} selectedCount={packageForm.selectedIds.length} hint="只允许 5 个或 10 个" shouldShow={shouldShowPackageMaterialList} items={filteredPackageMaterials} selectedIds={packageForm.selectedIds} onToggle={togglePackageMaterial} mode="package" />
+                    <MaterialPicker
+                      title="包炉选材"
+                      filters={packageFilters}
+                      setFilters={setPackageFilters}
+                      nameInput={packageNameInput}
+                      setNameInput={setPackageNameInput}
+                      selectedCount={packageForm.selectedIds.length}
+                      hint="只允许 5 个或 10 个"
+                      shouldShow={shouldShowPackageMaterialList}
+                      items={filteredPackageMaterials}
+                      selectedIds={packageForm.selectedIds}
+                      onToggle={togglePackageMaterial}
+                      onClear={clearPackageMaterials}
+                      mode="package"
+                    />
 
-                    <Button onClick={addPackageContract} disabled={isSavingPackageContract || !((packageForm.selectedIds.length === 5 || packageForm.selectedIds.length === 10) && packageForm.outputName)} className="h-12 w-full rounded-2xl bg-[#194b45] font-bold shadow-lg shadow-slate-900/10 hover:bg-[#25645d]">
+                    <Button onClick={addPackageContract} disabled={isSavingPackageContract || !((packageForm.selectedIds.length === 5 || packageForm.selectedIds.length === 10) && (packageForm.result === "未开炉" || packageForm.outputName))} className="h-12 w-full rounded-2xl bg-[#194b45] font-bold shadow-lg shadow-slate-900/10 hover:bg-[#25645d]">
                       {isSavingPackageContract ? "保存中..." : "保存包炉记录"}
                     </Button>
                   </div>
@@ -1948,11 +2228,11 @@ export default function CS2TradeRegisterPrototype() {
                             <TableRow className="transition-colors hover:bg-[#fffdf8]/80">
                               <TableCell>{exchangeEditMode ? <Input className="w-[145px] rounded-xl bg-white" type="date" value={item.date ?? ""} onChange={(e) => updateExchangeField(item, "date", e.target.value)} /> : item.date}</TableCell>
                               <TableCell>{exchangeEditMode ? <Select value={type} onValueChange={(value) => updateExchangeField(item, "type", value)}><SelectTrigger className="h-9 w-[76px] rounded-xl bg-white text-sm"><SelectValue /></SelectTrigger><SelectContent>{["ECO合炉", "包炉", "普通汰换"].map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select> : type}</TableCell>
-                              <TableCell>{exchangeEditMode ? <Input className="w-[150px] rounded-xl bg-white" value={contractName ?? ""} onChange={(e) => updateExchangeField(item, "contractName", e.target.value)} /> : <span className="font-medium">{contractName}</span>}</TableCell>
-                              <TableCell>{exchangeEditMode ? <Input className="w-[170px] rounded-xl bg-white" value={outputName ?? ""} onChange={(e) => updateExchangeField(item, "outputName", e.target.value)} /> : <span className="font-medium">{outputName}</span>}</TableCell>
-                              <TableCell>{exchangeEditMode ? <Select value={outputWearLevel} onValueChange={(value) => updateExchangeField(item, "outputWearLevel", value)}><SelectTrigger className="w-[140px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{wearLevelOptions.map((level) => <SelectItem key={level} value={level}>{level}</SelectItem>)}</SelectContent></Select> : outputWearLevel}</TableCell>
-                              <TableCell>{exchangeEditMode ? <Select value={outputWearRange} onValueChange={(value) => updateExchangeField(item, "outputWearRange", value)}><SelectTrigger className="w-[150px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{(wearRanges[outputWearLevel] || [outputWearRange]).map((range) => <SelectItem key={range} value={range}>{range}</SelectItem>)}</SelectContent></Select> : outputWearRange === "自定义" ? outputCustomWear || "自定义" : outputWearRange}</TableCell>
-                              <TableCell>{exchangeEditMode ? <Select value={item.result} onValueChange={(value) => updateExchangeField(item, "result", value)}><SelectTrigger className="w-[100px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{["成功", "失败"].map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select> : <ResultBadge result={item.result} />}</TableCell>
+                              <TableCell>{exchangeEditMode ? <Input className="w-[150px] rounded-xl bg-white" value={contractName ?? ""} onChange={(e) => updateExchangeField(item, "contractName", e.target.value)} /> : <span className="font-medium">{contractName || "-"}</span>}</TableCell>
+                              <TableCell>{exchangeEditMode ? <Input className="w-[170px] rounded-xl bg-white" value={outputName ?? ""} onChange={(e) => updateExchangeField(item, "outputName", e.target.value)} /> : <span className="font-medium">{outputName || "未开炉暂存"}</span>}</TableCell>
+                              <TableCell>{exchangeEditMode ? <Select value={outputWearLevel} onValueChange={(value) => updateExchangeField(item, "outputWearLevel", value)}><SelectTrigger className="w-[140px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{(outputWearLevel === "待定" ? ["待定", ...wearLevelOptions] : wearLevelOptions).map((level) => <SelectItem key={level} value={level}>{level}</SelectItem>)}</SelectContent></Select> : outputWearLevel}</TableCell>
+                              <TableCell>{exchangeEditMode ? <Select value={outputWearRange} onValueChange={(value) => updateExchangeField(item, "outputWearRange", value)}><SelectTrigger className="w-[150px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{(outputWearLevel === "待定" ? ["待定"] : (wearRanges[outputWearLevel] || [outputWearRange])).map((range) => <SelectItem key={range} value={range}>{range}</SelectItem>)}</SelectContent></Select> : outputWearRange === "自定义" ? outputCustomWear || "自定义" : outputWearRange}</TableCell>
+                              <TableCell>{exchangeEditMode ? <Select value={item.result} onValueChange={(value) => updateExchangeField(item, "result", value)}><SelectTrigger className="w-[100px] rounded-xl bg-white"><SelectValue /></SelectTrigger><SelectContent>{["成功", "失败", "未开炉"].map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select> : <ResultBadge result={item.result} />}</TableCell>
                               <TableCell>{exchangeEditMode ? <Input className="w-[120px] rounded-xl bg-white" type="number" value={refPrice ?? ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => updateExchangeField(item, "refPrice", e.target.value)} /> : money(refPrice)}</TableCell>
                               <TableCell>{exchangeEditMode ? <Input className="w-[120px] rounded-xl bg-white" type="number" value={furnaceFee ?? ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => updateExchangeField(item, "furnaceFee", e.target.value)} /> : money(furnaceFee)}</TableCell>
                               <TableCell>{exchangeEditMode ? <Input className="w-[120px] rounded-xl bg-white" type="number" value={salePrice ?? ""} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => updateExchangeField(item, "salePrice", e.target.value)} /> : salePrice ? money(salePrice) : "-"}</TableCell>
@@ -2244,14 +2524,13 @@ function Toast({ toast }) {
 }
 
 function HeaderPanel({ currentUser, membershipInfo, remainingDays, totalProfit, hidden, onToggleTotal, showUserPanel, setShowUserPanel, handleLogout }) {
-  const ANNOUNCEMENT_VERSION = "2026-05-08-practical-v2";
+  const ANNOUNCEMENT_VERSION = "2026-05-19-update-v1";
   const ANNOUNCEMENT_LINES = [
     "日进斗金本次更新：",
-    "1、整体换为暖灰、奶白、墨绿配色，长时间看数据更舒服；",
-    "2、顶部标题栏重做，会员、公告、总收益、用户中心和退出集中展示；",
-    "3、统计金额支持点击卡片或眼睛隐藏 / 显示，隐私操作更顺手；",
-    "4、ECO 合炉开炉费默认优化：失败自动为 0，切回成功自动恢复 10%；",
-    "5、库存编辑模式优化：点击整行即可选中，仍保留复选框精确操作。",
+  "1、登录和注册改为用户名模式，老邮箱账号仍可兼容登录；",
+  "2、用户中心支持修改用户名；",
+  "3、合炉选材新增一键清空，选错材料不用再一个个删；",
+  "4、ECO 合炉和包炉新增“未开炉”状态，可先暂存后补产物信息。",
   ];
   const announcementKey = `announcement-read-${currentUser?.id || "guest"}-${ANNOUNCEMENT_VERSION}`;
   const [showAnnouncement, setShowAnnouncement] = React.useState(false);
@@ -2328,7 +2607,20 @@ function UserPanel(props) {
   return (
     <Panel title="用户中心" desc="管理会员、激活码与密码。" icon={<UserRound className="h-5 w-5" />}>
       <div className="grid gap-3 xl:grid-cols-[220px_180px_minmax(0,1fr)_320px]">
-        <MiniInfo icon={<UserRound className="h-4 w-4" />} label="用户名" value={props.membershipInfo?.username || props.currentUser?.email?.split("@")[0] || "-"} />
+        <div className="rounded-[24px] border border-[#d8d1c4] bg-white p-4">
+          <div className="mb-3 flex items-center gap-2 text-sm font-bold text-[#1f2a2a]"><UserRound className="h-4 w-4" />修改用户名</div>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+            <Input
+              placeholder="用户名"
+              value={props.usernameInput ?? ""}
+              onChange={(e) => props.setUsernameInput(e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 20).toLowerCase())}
+              className="h-10 rounded-xl"
+            />
+            <Button onClick={props.handleUpdateUsername} disabled={props.isSavingUsername} className="h-10 rounded-xl px-4">
+              {props.isSavingUsername ? "保存中" : "保存"}
+            </Button>
+          </div>
+        </div>
         <MiniInfo icon={<ShieldCheck className="h-4 w-4" />} label="会员剩余" value={props.remainingDays > 0 ? `${props.remainingDays} 天` : "已过期"} />
         <div className="rounded-[24px] border border-[#d8d1c4] bg-white p-4">
           <div className="mb-3 flex items-center gap-2 text-sm font-bold text-[#1f2a2a]"><LockKeyhole className="h-4 w-4" />修改密码</div>
@@ -2488,20 +2780,22 @@ function NumberField({ label, value, onChange, placeholder, disabled }) {
   );
 }
 
-function SelectField({ label, value, options, onChange, tone }) {
+function SelectField({ label, value, options, onChange, tone, placeholder }) {
   const toneClass =
     tone === "success"
       ? "border-emerald-200 bg-emerald-50 text-emerald-700 focus:ring-emerald-100"
       : tone === "danger"
         ? "border-rose-200 bg-rose-50 text-rose-600 focus:ring-rose-100"
-        : "border-[#d8d1c4] bg-white text-[#1f2a2a] focus:ring-[#edf8f2]";
+        : tone === "warning"
+          ? "border-amber-200 bg-amber-50 text-amber-700 focus:ring-amber-100"
+          : "border-[#d8d1c4] bg-white text-[#1f2a2a] focus:ring-[#edf8f2]";
 
   return (
     <div className="w-full min-w-0 space-y-2">
       <Label className="text-xs font-bold text-[#6b6257]">{label}</Label>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger className={cx("h-11 w-full min-w-0 rounded-2xl px-4 text-base font-semibold shadow-none transition hover:bg-[#fffdf8] focus:ring-2 sm:text-sm", toneClass)}>
-          <SelectValue />
+          <SelectValue placeholder={placeholder || "请选择"} />
         </SelectTrigger>
         <SelectContent>{options.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
       </Select>
@@ -2611,19 +2905,40 @@ function PlatformBadge({ platform }) {
 }
 
 function StatusBadge({ status }) {
+  if (status === "未开炉") {
+    return <Badge className="rounded-full bg-amber-100 text-amber-800 hover:bg-amber-100">未开炉</Badge>;
+  }
   const stock = status === "库存中";
   return <Badge className={cx("rounded-full", stock ? "bg-amber-100 text-amber-800 hover:bg-amber-100" : "bg-[#194b45] text-white hover:bg-[#194b45]")}>{status}</Badge>;
 }
 
 function ResultBadge({ result }) {
+  if (result === "未开炉") {
+    return <Badge className="rounded-full bg-amber-100 text-amber-800 hover:bg-amber-100">未开炉</Badge>;
+  }
   const ok = result === "成功";
   return <Badge className={cx("rounded-full", ok ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" : "bg-rose-100 text-rose-600 hover:bg-red-100")}>{result}</Badge>;
 }
 
-function MaterialPicker({ title, filters, setFilters, nameInput, setNameInput, selectedCount, hint, shouldShow, items, selectedIds, onToggle, materialSalePrices, onSalePriceChange, mode }) {
+function MaterialPicker({ title, filters, setFilters, nameInput, setNameInput, selectedCount, hint, shouldShow, items, selectedIds, onToggle, onClear, materialSalePrices, onSalePriceChange, mode }) {
   return (
     <div className="space-y-3 rounded-[24px] border border-[#d8d1c4] bg-[#fffdf8]/70 p-4">
-      <div className="flex items-center justify-between gap-3"><div className="text-sm font-black text-[#1f2a2a]">{title}</div><div className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#6b6257]">已选 {selectedCount} ｜ {hint}</div></div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-sm font-black text-[#1f2a2a]">{title}</div>
+        <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
+          <div className="inline-flex h-11 items-center justify-center rounded-full bg-white px-4 text-xs font-bold text-[#6b6257] shadow-sm">
+            已选 {selectedCount} ｜ {hint}
+          </div>
+          <button
+            type="button"
+            disabled={!selectedCount}
+            onClick={onClear}
+            className="inline-flex h-11 items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-4 text-xs font-black text-rose-600 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            一键清空
+          </button>
+        </div>
+      </div>
       <div className="grid min-w-0 gap-3 md:grid-cols-2 [&>div]:min-w-0"><FieldDate label="日期筛选" value={filters.date} onChange={(value) => setFilters({ ...filters, date: value })} /><TextField label="名称筛选" placeholder="输入名称关键词" value={nameInput} onChange={setNameInput} /></div>
       {!shouldShow ? <div className="rounded-[20px] border border-dashed border-slate-300 bg-white px-4 py-5 text-center text-sm text-[#8a7d6c]">请先输入日期或名称筛选，再选择材料。</div> : (
         <div className="max-h-80 space-y-2 overflow-auto rounded-[22px] border border-[#d8d1c4] bg-white p-3">
@@ -2639,7 +2954,7 @@ function MaterialPicker({ title, filters, setFilters, nameInput, setNameInput, s
                   <div className="min-w-0"><div className="truncate font-bold">{item.name}</div><div className={cx("text-sm", active ? "text-emerald-700" : "text-[#6b6257]")}>{[item.date, item.platform, wearLevel, wearRange === "自定义" ? customWear || "自定义" : wearRange].filter(Boolean).join(" • ")}</div><div className={cx("mt-1 text-xs", active ? "text-emerald-700" : "text-[#6b6257]")}>成本：{money(item.cost)}</div></div>
                   <div className="shrink-0 rounded-full bg-white px-3 py-1 text-sm font-black shadow-sm">{active ? "已选" : "选择"}</div>
                 </button>
-                {mode === "eco" && active && <div className="mt-3"><Label className="text-xs font-bold text-emerald-800">材料售价</Label><Input type="number" placeholder="请输入这条材料的售价" value={materialSalePrice} onClick={(e) => e.stopPropagation()} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => onSalePriceChange(item.id, e.target.value)} className="mt-2 rounded-2xl bg-white text-[#1f2a2a]" /></div>}
+                {mode === "eco" && active && <div className="mt-3"><Label className="text-xs font-bold text-emerald-800">材料售价</Label><Input type="number" placeholder="请输入这条材料的售价" value={materialSalePrice} onClick={(e) => e.stopPropagation()} onWheel={(e) => e.currentTarget.blur()} onChange={(e) => onSalePriceChange(item.id, e.target.value)} className="mt-2 h-11 w-full rounded-2xl bg-white text-[#1f2a2a]" /></div>}
               </div>
             );
           })}

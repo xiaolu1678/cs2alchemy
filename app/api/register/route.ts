@@ -1,25 +1,35 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
+const USERNAME_EMAIL_DOMAIN = "rijindoujin.app";
+const USERNAME_RE = /^[A-Za-z0-9]{3,20}$/;
+
+function normalizeUsername(value: string) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function usernameToEmail(username: string) {
+  return `${normalizeUsername(username)}@${USERNAME_EMAIL_DOMAIN}`;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const email = String(body.email || "").trim().toLowerCase();
+    const username = normalizeUsername(body.username || "");
     const password = String(body.password || "");
     const confirmPassword = String(body.confirmPassword || "");
-    const username = String(body.username || "").trim();
 
-    if (!email || !password || !confirmPassword) {
+    if (!username || !password || !confirmPassword) {
       return NextResponse.json(
-        { error: "邮箱、密码和确认密码不能为空" },
+        { error: "用户名、密码和确认密码不能为空" },
         { status: 400 }
       );
     }
 
-    if (!username) {
+    if (!USERNAME_RE.test(username)) {
       return NextResponse.json(
-        { error: "用户名不能为空" },
+        { error: "用户名只能使用英文字母和数字，长度 3-20 位" },
         { status: 400 }
       );
     }
@@ -38,17 +48,41 @@ export async function POST(request: Request) {
       );
     }
 
+    const { data: existedMembership, error: existedError } = await supabaseAdmin
+      .from("user_memberships")
+      .select("user_id")
+      .eq("username", username)
+      .maybeSingle();
+
+    if (existedError) {
+      return NextResponse.json(
+        { error: "检查用户名失败", detail: existedError.message },
+        { status: 500 }
+      );
+    }
+
+    if (existedMembership) {
+      return NextResponse.json(
+        { error: "用户名已被使用" },
+        { status: 409 }
+      );
+    }
+
+    const email = usernameToEmail(username);
+
     const { data: createdUser, error: createError } =
       await supabaseAdmin.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
+        user_metadata: { username },
       });
 
     if (createError) {
+      const duplicated = createError.message?.toLowerCase?.().includes("already") || createError.message?.toLowerCase?.().includes("registered");
       return NextResponse.json(
-        { error: "创建用户失败", detail: createError.message },
-        { status: 400 }
+        { error: duplicated ? "用户名已被使用" : "创建用户失败", detail: createError.message },
+        { status: duplicated ? 409 : 400 }
       );
     }
 
@@ -87,6 +121,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
+      username,
       message: "注册成功，已赠送 8 天免费体验",
     });
   } catch (error: any) {

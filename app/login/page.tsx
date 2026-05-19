@@ -7,9 +7,28 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff } from "lucide-react";
 
+const USERNAME_EMAIL_DOMAIN = "rijindoujin.app";
+const USERNAME_RE = /^[A-Za-z0-9]{3,20}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normalizeUsername(value: string) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function usernameToEmail(username: string) {
+  return `${normalizeUsername(username)}@${USERNAME_EMAIL_DOMAIN}`;
+}
+
+function validateUsername(username: string) {
+  const normalized = normalizeUsername(username);
+  if (!normalized) return "用户名不能为空";
+  if (!USERNAME_RE.test(normalized)) return "用户名只能使用英文字母和数字，长度 3-20 位";
+  return "";
+}
+
 export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,21 +36,45 @@ export default function LoginPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   async function handleLogin() {
-    if (!email || !password) {
-      alert("邮箱和密码不能为空");
+    const identifier = String(username || "").trim();
+
+    if (!identifier) {
+      alert("用户名或旧邮箱不能为空");
       return;
+    }
+
+    if (!password) {
+      alert("密码不能为空");
+      return;
+    }
+
+    let loginEmail = "";
+
+    if (identifier.includes("@")) {
+      if (!EMAIL_RE.test(identifier)) {
+        alert("请输入正确的邮箱");
+        return;
+      }
+      loginEmail = identifier;
+    } else {
+      const usernameError = validateUsername(identifier);
+      if (usernameError) {
+        alert(usernameError);
+        return;
+      }
+      loginEmail = usernameToEmail(identifier);
     }
 
     setLoading(true);
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: loginEmail,
         password,
       });
 
       if (error) {
-        alert(`登录失败：${error.message}`);
+        alert("登录失败：用户名 / 邮箱或密码错误");
         return;
       }
 
@@ -50,8 +93,15 @@ export default function LoginPage() {
   }
 
   async function handleRegister() {
-    if (!email || !password || !confirmPassword) {
-      alert("邮箱、密码和确认密码不能为空");
+    const normalizedUsername = normalizeUsername(username);
+    const usernameError = validateUsername(normalizedUsername);
+    if (usernameError) {
+      alert(usernameError);
+      return;
+    }
+
+    if (!password || !confirmPassword) {
+      alert("密码和确认密码不能为空");
       return;
     }
 
@@ -74,8 +124,7 @@ export default function LoginPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          username: email.split("@")[0],
-          email: email.trim(),
+          username: normalizedUsername,
           password,
           confirmPassword,
         }),
@@ -90,6 +139,7 @@ export default function LoginPage() {
 
       alert(result?.message || "注册成功，已赠送 8 天免费体验");
       setMode("login");
+      setUsername(normalizedUsername);
       setPassword("");
       setConfirmPassword("");
     } catch (err) {
@@ -206,7 +256,7 @@ export default function LoginPage() {
                 {mode === "login" ? "登录" : "注册"}
               </h2>
               <p className="mt-3 text-sm text-[#64748b]">
-                {mode === "login" ? "Designed by ZaLL" : "联系作者：QQ 2647060757"}
+                {mode === "login" ? "旧账号可用邮箱登录" : "用户名仅支持英文字母和数字"}
               </p>
             </div>
 
@@ -241,15 +291,20 @@ export default function LoginPage() {
 
             <div className="space-y-5">
               <div className="space-y-2">
-                <Label className="text-xs font-black text-[#64748b]">邮箱</Label>
+                <Label className="text-xs font-black text-[#64748b]">{mode === "login" ? "用户名 / 旧邮箱" : "用户名"}</Label>
                 <Input
-                  type="email"
-                  value={email}
+                  type="text"
+                  value={username}
                   onKeyDown={submitByEnter}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
-                  placeholder="请输入邮箱"
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                    const value = e.target.value;
+                    setUsername(mode === "login" ? value.trim() : value.replace(/[^A-Za-z0-9]/g, "").slice(0, 20));
+                  }}
+                  placeholder={mode === "login" ? "请输入用户名或旧邮箱" : "请输入用户名"}
+                  autoComplete="username"
                   className="h-14 rounded-2xl border-[#e2e8f0] bg-white px-4 text-base shadow-none transition focus:border-[#3b82f6] focus:ring-4 focus:ring-[#eff6ff]"
                 />
+                <div className="text-xs font-medium text-[#94a3b8]">{mode === "login" ? "老用户可用原邮箱登录，改完用户名后再用新用户名登录" : "英文字母和数字，3-20 位"}</div>
               </div>
 
               <div className="space-y-2">
@@ -261,6 +316,7 @@ export default function LoginPage() {
                     onKeyDown={submitByEnter}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                     placeholder="请输入密码"
+                    autoComplete={mode === "login" ? "current-password" : "new-password"}
                     className="h-14 rounded-2xl border-[#e2e8f0] bg-white px-4 pr-12 text-base shadow-none transition focus:border-[#3b82f6] focus:ring-4 focus:ring-[#eff6ff]"
                   />
                   <button
@@ -283,6 +339,7 @@ export default function LoginPage() {
                       onKeyDown={submitByEnter}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
                       placeholder="请再次输入密码"
+                      autoComplete="new-password"
                       className="h-14 rounded-2xl border-[#e2e8f0] bg-white px-4 pr-12 text-base shadow-none transition focus:border-[#3b82f6] focus:ring-4 focus:ring-[#eff6ff]"
                     />
                     <button
